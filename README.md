@@ -121,13 +121,13 @@ GROUNDED: True | top evidence (sim=0.30): "Apologies for the delay to your trave
 ```bash
 # download twcs.csv from Kaggle, then:
 export TWCS_PATH=/path/to/twcs.csv
-python cli.py eval           # thread reconstruction + training now use real Delta threads
+python cli.py eval          
 ```
 
 To generate replies and judge them with a hosted model instead of the default backend:
 
 ```bash
-export SUPPORT_AGENT_LLM=openai            # or anthropic
+export SUPPORT_AGENT_LLM=openai           
 export OPENAI_API_KEY=sk-...
 export SUPPORT_AGENT_LLM_MODEL=gpt-4o-mini
 python cli.py demo
