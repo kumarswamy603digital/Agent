@@ -153,34 +153,34 @@ policy, and evaluation harness run against real data.
 
 ```
 Agent/
-├── cli.py                       # entrypoint: setup | handle | demo | eval
+├── cli.py                       
 ├── src/support_agent/
-│   ├── intents.py               # the 9-intent taxonomy + abstain label
-│   ├── data_loader.py           # twcs.csv reader + thread reconstruction (schema-faithful)
-│   ├── text.py                  # tweet normalization / tokenization
-│   ├── vectorizer.py            # TF-IDF + cosine
+│   ├── intents.py               
+│   ├── data_loader.py           
+│   ├── text.py                  
+│   ├── vectorizer.py          
 │   ├── classifiers/
-│   │   ├── trivial.py           # baseline 1: majority class
-│   │   ├── rules.py             # baseline 2: keyword rules (also the weak-supervision teacher)
-│   │   ├── nb.py                # multinomial Naive Bayes
-│   │   └── hybrid.py            # main model: rule-prior + Naive Bayes blend
-│   ├── retriever.py             # retrieves historical resolved threads for grounding
-│   ├── reply.py                 # grounded, brand-voiced reply drafting
-│   ├── escalation.py            # auto-handle vs escalate + stated reason
-│   ├── llm/backend.py           # pluggable LLM interface: default | openai | anthropic
-│   └── agent.py                 # end-to-end orchestration
+│   │   ├── trivial.py           
+│   │   ├── rules.py            
+│   │   ├── nb.py              
+│   │   └── hybrid.py          
+│   ├── retriever.py            
+│   ├── reply.py                 
+│   ├── escalation.py          
+│   ├── llm/backend.py         
+│   └── agent.py                
 ├── eval/
-│   ├── metrics.py               # accuracy, macro-F1, confusion, Cohen's κ
-│   ├── judge.py                 # LLM-as-judge rubric + default rubric judge
-│   └── run_eval.py              # the harness that produces results/
-├── data/                        # sample corpus + golden sets (see table above)
+│   ├── metrics.py              
+│   ├── judge.py                
+│   └── run_eval.py             
+├── data/                        
 ├── scripts/
-│   ├── generate_sample_data.py  # builds the sample corpus
-│   ├── build_golden.py          # emits the golden set (labels are inline & reviewable)
-│   └── build_judge_set.py       # emits the judge-agreement set
-├── tests/                       # unit tests for core invariants
-├── report/REPORT.md             # the full report
-└── DECISIONS.md                 # the decision log
+│   ├── generate_sample_data.py  
+│   ├── build_golden.py         
+│   └── build_judge_set.py       
+├── tests/                       
+├── report/REPORT.md             
+└── DECISIONS.md                 
 ```
 
 ## Tests
