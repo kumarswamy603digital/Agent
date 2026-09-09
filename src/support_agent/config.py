@@ -21,11 +21,25 @@ class Config:
     ngram_range: Tuple[int, int] = (1, 2)   # used by TF-IDF retriever
     min_df: int = 2
 
-    # --- main hybrid classifier (rule-prior + Naive Bayes) ---
+    # --- rule/NB teacher inside the main model ---
     rule_weight: float = 0.7       # weight on rules when they fire (else defer to NB)
     nb_alpha: float = 0.3          # Laplace smoothing for Naive Bayes
     nb_min_df: int = 1
     nb_ngram_range: Tuple[int, int] = (1, 1)  # unigrams generalize best here
+
+    # --- learned student (distilled logistic regression) ---
+    lr_learning_rate: float = 0.6
+    lr_epochs: int = 150
+    lr_l2: float = 1e-3
+    lr_use_char_ngrams: bool = True
+    lr_min_feature_count: int = 3
+    # Ensemble weight on the STUDENT. 0.5 = equal-weight blend of the hand-written
+    # rule chain and the learned model. Deliberately left at the parameter-free
+    # default rather than tuned, so the headline test number isn't fitted to test.
+    student_weight: float = 0.5
+
+    # Cache for the trained student's weights (keeps the CLI instant).
+    model_cache_path: str = ".cache/student_model.json"
 
     # --- abstain / escalation ---
     # If top intent probability < abstain_threshold, classifier returns ABSTAIN

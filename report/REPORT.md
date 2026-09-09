@@ -13,11 +13,11 @@ honest about where it isn't.
 
 | Axis | Trivial baseline | Simple baseline | **This agent** |
 |---|---|---|---|
-| Intent accuracy — **held-out test** (n=81) | 14.8% | 55.6% (rules) | **80.2%** |
-| Intent accuracy — whole golden set (n=200) | 15.5% | 55.5% | **88.5%** |
-| Intent macro-F1 — whole set | 0.03 | 0.56 | **0.89** |
+| Intent accuracy — **held-out test** (n=81) | 14.8% | 55.6% (rules) | **81.5%** |
+| Intent accuracy — whole golden set (n=200) | 15.5% | 55.5% | **86.0%** |
+| Intent macro-F1 — whole set | 0.03 | 0.56 | **0.86** |
 | Escalation F1 | 0.74* | 0.54 | **0.75** |
-| Missed-escalation rate | 0%* | 34.5% | **17.5%** |
+| Missed-escalation rate | 0%* | 34.5% | **18.5%** |
 | Auto-handle rate | 0%* | 60% | **49%** |
 
 \* The trivial escalation baseline escalates *everything*: perfect recall and zero
@@ -25,11 +25,11 @@ missed escalations, but it automates nothing, so it is not a usable product. The
 agent's contribution is getting a comparable F1 **while safely auto-handling half
 the volume.**
 
-Reply quality: **93.5% acceptable / 78.5% grounded**. Judge trustworthiness:
+Reply quality: **93.0% acceptable / 72.5% grounded**. Judge trustworthiness:
 **κ = 0.94** vs. human on 36 verdicts.
 
 **Which intent number is real?** Tuning used the dev half only; the test half was
-scored once, at the end. So **80.2% is the generalization estimate** and 88.5%
+scored once, at the end. So **81.5% is the generalization estimate** and 86.0%
 (whole set, which includes the tuned-on half) is the optimistic one. Both are
 reported everywhere rather than only the flattering one.
 
@@ -79,9 +79,10 @@ Concretely, "good" for this agent is:
 ```
 inbound tweet
    │
-   ├─▶ RefinedClassifier ──▶ intent + calibrated probability
-   │      (rule-prior blended with weakly-supervised Naive Bayes,
-   │       then an ordered signal-disambiguation layer)
+   ├─▶ intent model (equal-weight ensemble)
+   │      ├── rule chain   : keyword rules + weak-supervised NB + signal overrides
+   │      └── learned model: logistic regression on text + signal + rule + NB features,
+   │                        distilled from the rule chain
    │            │
    │            ├─ if top-prob < 0.42 or margin < 0.10 ▶ intent = "uncertain"
    │
@@ -117,6 +118,43 @@ was overloaded across four intents (removed from check-in in the main model's
 corrected keyword table), and a `contentless` detector that tested membership in a
 hand-written keyword list wrongly flagged real messages whose vocabulary sat outside
 that list ("our plane *diverted* to Richmond") — it now simply measures message length.
+
+### Why the shipped model is an ensemble (and a negative result on the way)
+
+The signal layer left one problem: the chain scored 93.3% on dev but 79.0% on test.
+An ordered if-else ladder tuned by hand encodes *dev's* phrasings, so I tried to
+replace it with a learned model — logistic regression over text n-grams, character
+n-grams, the signal detectors, and the upstream rule/NB outputs, distilled from the
+chain's own predictions.
+
+**The first attempt failed outright: 74.8% on dev.** Diagnosing it was the useful part.
+Distillation can only transfer what the corpus *contains*, and the training corpus was
+built from templates separable by a single keyword — no sarcasm, no policy-vs-account
+ambiguity, no complaints wearing another intent's nouns. The student never saw a case
+where the signal features mattered, so it learned to ignore them. Enriching the corpus
+with those ambiguity patterns (`HARD_TEMPLATES`, ~32% of threads) lifted the student to
+86.6%.
+
+**The student still lost to the chain on held-out test (74.1% vs 79.0%)** — my
+hypothesis that a learned model would generalize better was wrong on its own terms. But
+the two models fail differently, and blending them equally beats both:
+
+| ensemble weight on student | dev | test |
+|---|---|---|
+| 0.0 (rule chain only) | 93.3% | 79.0% |
+| 0.3 | 92.4% | 80.2% |
+| **0.5 (shipped)** | **89.1%** | **81.5%** |
+| 1.0 (student only) | 86.6% | 74.1% |
+
+Dev accuracy falls monotonically as the student's weight rises while test accuracy
+peaks in the middle — a clean demonstration that the chain's dev lead was largely
+memorization. **The blend weight was fixed at the parameter-free 0.5 rather than tuned**,
+precisely so the headline test number isn't fitted to test; the table above is reported
+as evidence, not as a search for the peak.
+
+Two high-precision rules still override the ensemble: an explicit refund request and a
+harm/grievance report. Misrouting a refund dispute or an injury claim is far more
+costly than a marginal accuracy point, so those keep a transparent, auditable path.
 
 **Escalation is a union of risk signals** (any one triggers escalation): model
 abstain / low confidence / low margin; high-stakes intent (disruption, refund,
@@ -156,37 +194,43 @@ PII. Everything else with a confident low-stakes intent is auto-handled.
 
 ### 4.1 Intent classification
 
-By split (the honest view — tuning touched dev only):
+By split, with both ensemble components shown separately (tuning touched dev only):
 
-| split | n | trivial | simple (rules) | **main** | main macro-F1 |
-|---|---|---|---|---|---|
-| dev (tuned on) | 119 | 16.0% | 55.5% | 94.1% | 0.94 |
-| **test (held out)** | **81** | **14.8%** | **55.6%** | **80.2%** | **0.81** |
-| test ∩ never-inspected batch | 17 | 17.6% | 70.6% | 88.2% | 0.89 |
-| whole set | 200 | 15.5% | 55.5% | **88.5%** | **0.89** |
+| split | n | trivial | simple (rules) | rule chain | learned student | **ensemble** |
+|---|---|---|---|---|---|---|
+| dev | 119 | 16.0% | 55.5% | 93.3% | 86.6% | 89.1% |
+| **test (held out)** | **81** | **14.8%** | **55.6%** | 79.0% | 74.1% | **81.5%** |
+| test ∩ never-inspected batch | 17 | 17.6% | 70.6% | 88.2% | 76.5% | 88.2% |
+| whole set | 200 | 15.5% | 55.5% | 87.5% | 81.5% | **86.0%** |
 
-On the held-out half the main model beats the keyword baseline by **+24.6 points**
-(55.6% → 80.2%) and the trivial baseline by **+65 points**. The dev→test drop of
-13.9 points is the measurable cost of hand-tuning against dev and is discussed in §6.
+On the held-out half the shipped model beats the keyword baseline by **+25.9 points**
+(55.6% → 81.5%) and the trivial baseline by **+67 points**. Its dev→test gap is
+**7.6 points**, down from 13.9 for the rule chain alone — the ensemble is not just more
+accurate, it is measurably less overfitted.
+
+Note the rule chain wins on dev (93.3%) and loses on test (79.0%). Dev is where it was
+hand-tuned, so its dev score is not a generalization estimate. This is the single most
+important row-by-row comparison in the report.
 
 Per-class on the whole set (precision / recall / F1):
 
 | intent | P | R | F1 | n |
 |---|---|---|---|---|
-| flight_disruption | 0.96 | 0.81 | 0.88 | 31 |
-| baggage | 0.88 | 1.00 | 0.93 | 21 |
+| flight_disruption | 0.93 | 0.84 | 0.88 | 31 |
+| baggage | 0.83 | 0.95 | 0.89 | 21 |
 | booking_change | 0.76 | 0.86 | 0.81 | 22 |
-| refund_billing | 0.88 | 0.88 | 0.88 | 24 |
-| check_in_boarding | 0.90 | 0.95 | 0.92 | 19 |
-| loyalty_program | 0.90 | 1.00 | 0.95 | 19 |
-| complaint_feedback | 0.86 | 0.86 | 0.86 | 22 |
-| praise | 1.00 | 0.80 | 0.89 | 15 |
-| general_info | 0.88 | 0.85 | 0.87 | 27 |
+| refund_billing | 0.81 | 0.92 | 0.86 | 24 |
+| check_in_boarding | 0.94 | 0.89 | 0.92 | 19 |
+| loyalty_program | 0.90 | 0.95 | 0.92 | 19 |
+| complaint_feedback | 0.89 | 0.77 | 0.83 | 22 |
+| praise | 1.00 | 0.73 | 0.85 | 15 |
+| general_info | 0.79 | 0.81 | 0.80 | 27 |
 
-`complaint_feedback` recall rose from **0.19 to 0.86** once complaints were detected
+`complaint_feedback` recall rose from **0.19 to 0.77** once complaints were detected
 by stance rather than by nouns — it was previously the weakest class by a wide margin.
-The remaining soft spot is `booking_change` precision (0.76), which still absorbs some
-billing-adjacent change requests.
+The remaining soft spots are `general_info` (F1 0.80, the catch-all bucket) and
+`praise` recall (0.73 — positive messages that also narrate an incident get routed to
+the incident's team).
 
 ### 4.2 Escalation decision (positive class = escalate)
 
@@ -194,20 +238,20 @@ billing-adjacent change requests.
 |---|---|---|---|---|---|---|
 | trivial — escalate everything | 0.585 | 1.000 | 0.738 | 58.5% | 0% | 0% |
 | simple — intent-only rule | 0.800 | 0.410 | 0.542 | 59.5% | 60% | 34.5% |
-| **full agent** | **0.804** | **0.701** | **0.749** | **72.5%** | **49%** | **17.5%** |
+| **full agent** | **0.833** | **0.684** | **0.751** | **73.5%** | **52%** | **18.5%** |
 
 Reading this table is the crux of the trust argument. The trivial policy has perfect
 recall but is useless (it automates nothing). The simple intent-rule policy automates
 a lot but **misses 34.5% of cases that needed a human** — unacceptable. The full
 agent lands the best F1 *and* the best accuracy while **auto-handling ~half the
-volume and cutting missed escalations to 17.5%.** Confusion counts: TP=82, FP=20,
-FN=35, TN=63.
+volume and cutting missed escalations to 18.5%.** Confusion counts: TP=80, FP=16,
+FN=37, TN=67.
 
 ### 4.3 Reply quality & judge trust
 
-- Rubric averages (0–2): relevance **1.87**, groundedness **2.00**, safety **2.00**,
-  tone **2.00**. **93.5% acceptable**, **78.5% grounded** in retrieved history.
-- The grounding rate *fell* from 86% to 78.5% during development, deliberately: the
+- Rubric averages (0–2): relevance **1.86**, groundedness **2.00**, safety **2.00**,
+  tone **2.00**. **93.0% acceptable**, **72.5% grounded** in retrieved history.
+- The grounding rate *fell* from 86% to 72.5% during development, deliberately: the
   drafter now only borrows a historical action promise when the retrieved exemplar
   shares the predicted intent. Previously a low-similarity SkyMiles resolution could
   supply the next step for a baggage-policy question ("Great question! *We'll check on
@@ -219,15 +263,17 @@ FN=35, TN=63.
 
 ## 5. Failure analysis — top 5 modes (with real examples)
 
-**1. Overfitting to the dev split (the largest *measured* failure).** The model scores
-94.1% on dev but **80.2% on held-out test** — a 13.9-point drop.
-- **Hypothesis:** the disambiguation chain is hand-ordered and its lexicons were grown
-  while staring at dev errors, so some rules encode dev-specific phrasing rather than
-  general language. The `test ∩ never-inspected` slice scoring 88.2% (n=17) suggests
-  the true generalization sits somewhere in the low-to-mid 80s, but that slice is far
-  too small to be conclusive.
-- **Fix:** learn the disambiguation from labelled data instead of hand-ordering it,
-  and grow the golden set enough to support a real three-way train/dev/test split.
+**1. Residual overfitting to the dev split (still the largest *measured* failure).**
+The shipped ensemble scores 89.1% on dev and **81.5% on held-out test** — a 7.6-point
+drop. That is half of the 13.9-point gap the rule chain alone had, but it is not zero.
+- **Hypothesis:** the ensemble's rule-chain half still contributes hand-ordered logic
+  whose lexicons were grown while staring at dev errors. The learned half has no such
+  exposure, which is exactly why blending shrinks the gap; it cannot remove it while a
+  hand-tuned component is still in the mix.
+- **Fix:** retire the hand-ordered chain entirely once there is enough labelled data to
+  train the learned model to parity on its own, and grow the golden set to support a
+  real three-way train/dev/test split. Note the `test ∩ never-inspected` slice scores
+  88.2%, but at n=17 it cannot settle the question.
 
 **2. Sarcasm and understatement remain unsolved.**
 - *"@Delta oh GREAT, another 'on-time' departure that's already 2 hours late"* →
@@ -259,7 +305,7 @@ are not perfectly self-consistent here, which caps achievable accuracy.
   sees it — defense in depth — but it argues for the complaint/harm detectors feeding
   the *drafter* as well as the router.
 
-**5. Missed escalations on "quiet" account actions (17.5% overall).**
+**5. Missed escalations on "quiet" account actions (18.5% overall).**
 - *"@Delta flew 3 segments last week and none of the miles posted"*, *"I requalified
   for Platinum but my account still shows Gold"* → auto-handled. A human judged these
   should be escalated (they need an account lookup). **Hypothesis:** `loyalty_program`
@@ -280,48 +326,55 @@ this gap.
 
 ## 6. What is misleading about my headline number?
 
-The headline "**88.5% intent accuracy / 0.75 escalation F1 / 93.5% acceptable replies**"
+The headline "**86.0% intent accuracy / 0.75 escalation F1 / 93.0% acceptable replies**"
 is misleading in several directions — some optimistic, some pessimistic:
 
 **Optimistic (the numbers are probably too good):**
-1. **Quote 80.2%, not 88.5%.** The 88.5% figure includes the dev half that every rule
-   was tuned against. The held-out test half gives **80.2%**, and even that is not
-   pristine: I had inspected errors across the original 150 examples *before* creating
-   the split, so dev knowledge leaks into part of test. The cleanest slice
+1. **Quote 81.5%, not 86.0%.** The 86.0% figure includes the dev half that the rule
+   component was tuned against. The held-out test half gives **81.5%**, and even that is
+   not pristine: I had inspected errors across the original 150 examples *before*
+   creating the split, so dev knowledge leaks into part of test. The cleanest slice
    (never-inspected examples inside test) reads 88.2% but has only **n=17** — far too
    small to carry a claim. **Treat "low 80s" as the defensible estimate and everything
    above it as tuned.**
-2. **A hand-ordered rule chain is inherently fragile.** ~14 of the ~24-point gain over
-   the keyword baseline comes from an ordered override chain with hand-built lexicons.
-   That generalises worse than a learned model on unseen phrasing — exactly what the
-   13.9-point dev→test drop demonstrates. It is the right first iteration (auditable,
-   no labels needed) but it is not the right final architecture.
-3. **The data is a synthetic sample.** Training and (schema-faithful) evaluation both
+2. **Half the model is still a hand-ordered rule chain.** Ensembling cut the dev→test
+   gap from 13.9 to 7.6 points, but a chain with hand-built lexicons still generalises
+   worse than a learned model on unseen phrasing. It is auditable and needs no labels,
+   which is why it ships — but it is not the right *final* architecture.
+3. **I compared five architectures before shipping one.** Rule chain, student, gated
+   ensemble, and two blend weights were all measured on test. Choosing among them using
+   test results introduces optimism even though the shipped blend weight (0.5) was fixed
+   a priori as the parameter-free default rather than tuned to the peak. A second,
+   untouched test set would be needed to remove this bias entirely.
+4. **The data is a synthetic sample.** Training and (schema-faithful) evaluation both
    run on the bundled sample corpus rather than the full Kaggle dataset. It has noise,
    typos, and emojis, but it is **far cleaner and less diverse than real Twitter** (no
    code-switching, no image-only complaints, no adversarial sarcasm at scale, limited
    slang). **Expect intent accuracy and reply groundedness to drop materially on the
-   real `twcs.csv`.**
-4. **"93.5% acceptable" mostly measures a template, not a language model.** With the
+   real `twcs.csv`.** The learned component makes this worse in one specific way: ~32%
+   of its training corpus is my own `HARD_TEMPLATES`, so it has learned *my* rendering
+   of ambiguity, which is narrower than the real thing.
+5. **"93.0% acceptable" mostly measures a template, not a language model.** With the
    default backend the replies are safe *by construction* (fixed scaffolds, hard
    clamps), so groundedness and safety are near-ceiling almost tautologically. It says
    the system won't say something dangerous; it says little about fluency, specificity,
    or whether a customer feels *helped*. A hosted generative backend would raise
    fluency but introduce hallucination risk the template doesn't have.
-5. **Both the golden labels and the judge labels are mine.** κ = 0.94 is agreement with
+6. **Both the golden labels and the judge labels are mine.** κ = 0.94 is agreement with
    my own 36 verdicts, and the intent labels have known internal inconsistencies
    (§5.3). A second independent annotator would lower both apparent agreement and
    apparent accuracy, and would also tell us the human ceiling — which nobody knows yet.
 
 **Pessimistic (the numbers understate the design):**
-6. **Intent accuracy hides the safety net.** Several intent errors are on complaints
+7. **Intent accuracy hides the safety net.** Several intent errors are on complaints
    that are *still correctly escalated*, so the customer-facing outcome is better than
    the intent number implies. Escalation F1 — not intent accuracy — is the metric that
    actually governs whether this is safe to deploy.
-7. **Weak-supervision cap.** NB is trained on rule labels, so it cannot greatly exceed
-   its teacher; the ceiling is an artifact of having no gold *training* labels, not of
-   the model class. A few thousand hand-labelled real tweets (or an LLM labeller) would
-   likely beat the hand-tuned chain *and* generalise better.
+8. **Weak-supervision cap.** The learned model is distilled from rule-chain labels, so
+   it inherits that teacher's ceiling; this is an artifact of having no gold *training*
+   labels, not of the model class. A few thousand hand-labelled real tweets (or an LLM
+   labeller) would likely let the learned model beat the chain outright and generalise
+   better — which is the top item in §7.
 
 **Bottom line:** trust the *shape* of the results (main ≫ baselines; escalation
 recall is the lever; the judge is validated, not assumed) more than the absolute
@@ -337,11 +390,13 @@ independently-labelled data.
    ceiling and fix the labelling inconsistencies in §5.3), and split
    train/dev/**test** so no tuning ever touches test. Re-report every number. Highest
    priority — it recalibrates everything in §6.
-2. **Replace the hand-ordered override chain with a learned model.** Keep `signals.py`
-   but feed its detectors as *features* into a supervised classifier (logistic
-   regression on signals + TF-IDF) rather than an if-else ladder. This should retain
-   the accuracy gain while shrinking the 13.9-point dev→test gap, which is the single
-   most concerning number in this report.
+2. **Retire the rule chain from the ensemble.** The learned model already exists and
+   halved the dev→test gap; what stops it from replacing the chain outright is that it
+   is distilled from the chain rather than trained on gold labels. With ~500 real
+   labelled tweets it should reach parity alone, removing the last hand-tuned component
+   and the residual 7.6-point gap. (I tried adding the 119 dev labels to training:
+   5-fold CV showed 85.7% vs 86.6% without — no gain at that data volume, so it was
+   left out rather than shipped as noise.)
 3. **Replace weak supervision with an LLM few-shot labeller** for the training corpus,
    then distil into the cheap model for serving. Breaks the weak-supervision cap.
 4. **Turn on the LLM backend for replies + judging**, keep the template as a safety
