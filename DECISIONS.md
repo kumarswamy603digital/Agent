@@ -1,0 +1,80 @@
+# Decision log
+
+The 10–15 non-obvious decisions behind this agent, and why.
+
+1. **Picked Delta (airline) as the brand.** Airline social care has naturally
+   separable, action-oriented intents *and* an unusually clean auto-vs-escalate story
+   (rebooking/refunds/complaints → human; policy/how-to/praise → auto). That makes it
+   the best vehicle for the assignment's real focus: the *trust* argument.
+
+2. **Framed the objective as safe triage, not resolution.** Public tweets can't
+   perform account actions, so "good" = correct routing + non-committal grounded
+   acknowledgement, not "resolve the ticket". This decision shapes the whole design
+   (esp. that escalation recall > raw accuracy).
+
+3. **Kept the taxonomy small (9 intents).** Every intent maps to a distinct routing
+   action; buckets we couldn't act on differently were merged. Sentiment/language are
+   features, not classes.
+
+4. **Made the escalation policy deliberately asymmetric and rule-driven, not
+   learned.** The cost of a missed escalation (angry customer, refund dispute, safety
+   issue auto-answered) dwarfs the cost of a needless one. A transparent union-of-
+   signals policy is auditable and lets us reason about *why* each case escalated —
+   more trustworthy than a black-box classifier for a safety decision.
+
+5. **Weak supervision for training labels.** The real `twcs.csv` has no intent labels,
+   so we label historical threads with the keyword rules and train NB on those. It's
+   honest about the real-data situation and reproducible. Its ceiling (NB ≤ its
+   teacher) is documented rather than hidden.
+
+6. **Main model = rule+NB *hybrid*, not pure NB.** Pure NB (weakly supervised) only
+   *matched* the rules on the golden set. Blending — trust rules when a domain keyword
+   fires, defer to NB when they're silent instead of guessing the majority — lifted
+   accuracy 55%→66% and yields one coherent probability for the abstain/escalation
+   gate. Chose a blend weight of 0.7 by a small sweep (disclosed as mild eval-set
+   fitting).
+
+7. **Naive Bayes over logistic regression** for the ML component: one-pass, no SGD
+   seeding/convergence variance (so results are bit-stable), and its class-conditional
+   log-probs are directly inspectable (`explain()`), which matters for a system we're
+   asking a team to trust.
+
+8. **Unigrams for the classifier, uni+bigrams for retrieval.** Bigrams *hurt* the
+   classifier on the small corpus (sparse, training bigrams don't match golden
+   phrasings) but *help* retrieval (phrase matches improve grounding). Different jobs,
+   different features.
+
+9. **Grounded replies extract the historical *action promise* ("we'll open a claim"),
+   not the whole past reply.** Early drafts duplicated the DM/confirmation-number ask.
+   The drafter now pulls the "we'll…/we can…" clause from real resolutions and strips
+   agent signatures, so the reply is grounded without being repetitive or committing
+   to specifics.
+
+10. **Reply drafting is template-scaffolded even when an LLM is available.** The LLM
+    (if wired) *rewrites* a safe scaffold and is instructed to stay grounded; it never
+    free-generates from scratch. This bounds hallucination and keeps a deterministic
+    offline fallback. Hard clamps forbid soliciting card numbers/passwords and cap
+    length.
+
+11. **One `LLMBackend` interface with a deterministic offline default.** All LLM use
+    (replies *and* judging) goes through `complete(system, user)`. Offline →
+    deterministic heuristic; with a key → real OpenAI/Anthropic via stdlib `urllib`.
+    Reproducibility offline, real capability when available, zero call-site changes.
+
+12. **Everything is pure standard library.** No numpy/pandas/sklearn (unavailable
+    offline) — TF-IDF, NB, all metrics, and Cohen's κ are implemented from scratch.
+    Side benefit: `python cli.py eval` runs in ~2s with a stock Python.
+
+13. **Validated the judge instead of trusting it.** Built a separate, balanced,
+    hand-labelled reply-verdict set and report Cohen's κ (0.94). Also documented the
+    judge's one failure (under-detecting wrong-intent replies) rather than hiding it.
+
+14. **Golden examples are hand-written with vocabulary that's absent from training.**
+    Prevents the intent metric from measuring memorization; forces an out-of-
+    distribution test. Included deliberately debatable escalation calls so the eval
+    surfaces the precision/recall tension.
+
+15. **Shipped a synthetic corpus in the exact Kaggle schema and disclosed it loudly.**
+    Given no internet, this is the only way to make the pipeline runnable end-to-end;
+    `data_loader` reads the real file unchanged via `TWCS_PATH`. The synthetic-data
+    caveat is the #1 item in the report's "what's misleading" section.
