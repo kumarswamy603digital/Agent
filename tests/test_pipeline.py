@@ -18,6 +18,8 @@ from support_agent.data_loader import build_threads
 from support_agent.escalation import decide
 from support_agent.classifiers.base import Prediction
 from support_agent.intents import INTENTS, ABSTAIN
+from support_agent.classifiers.logreg import LogisticRegression
+from support_agent.features import build_features, char_ngrams
 from support_agent.signals import analyze
 from support_agent.text import tokenize, normalize
 from support_agent.vectorizer import TfidfVectorizer, cosine
@@ -111,6 +113,46 @@ class TestSignals(unittest.TestCase):
     def test_strong_positive_excludes_bare_thanks(self):
         self.assertFalse(analyze("@Delta bag turned up, false alarm, thanks anyway").strong_positive)
         self.assertTrue(analyze("@Delta the crew were amazing today").strong_positive)
+
+
+class TestLogisticRegression(unittest.TestCase):
+    def test_learns_a_separable_problem(self):
+        X = [{"a": 1.0}, {"a": 1.0}, {"b": 1.0}, {"b": 1.0}]
+        y = ["one", "one", "two", "two"]
+        m = LogisticRegression(lr=1.0, epochs=300, l2=0.0).fit(X, y)
+        self.assertEqual(m.predict({"a": 1.0}).label, "one")
+        self.assertEqual(m.predict({"b": 1.0}).label, "two")
+
+    def test_proba_is_a_distribution(self):
+        X = [{"a": 1.0}, {"b": 1.0}]
+        m = LogisticRegression(lr=0.5, epochs=50).fit(X, ["one", "two"])
+        p = m.predict_proba({"a": 1.0})
+        self.assertAlmostEqual(sum(p.values()), 1.0, places=6)
+        self.assertTrue(all(v >= 0 for v in p.values()))
+
+    def test_deterministic(self):
+        X = [{"a": 1.0}, {"b": 1.0}]
+        a = LogisticRegression(lr=0.5, epochs=40).fit(X, ["one", "two"]).predict_proba({"a": 1.0})
+        b = LogisticRegression(lr=0.5, epochs=40).fit(X, ["one", "two"]).predict_proba({"a": 1.0})
+        self.assertEqual(a, b)
+
+    def test_state_roundtrip(self):
+        X = [{"a": 1.0}, {"b": 1.0}]
+        m = LogisticRegression(lr=0.5, epochs=40).fit(X, ["one", "two"])
+        m2 = LogisticRegression().load_state(m.state())
+        self.assertEqual(m.predict_proba({"a": 1.0}), m2.predict_proba({"a": 1.0}))
+
+
+class TestFeatures(unittest.TestCase):
+    def test_char_ngrams_survive_typos(self):
+        a = set(char_ngrams("cancelled"))
+        b = set(char_ngrams("cancelld"))
+        self.assertTrue(len(a & b) >= 3, "typo should still share char n-grams")
+
+    def test_signal_features_present_and_scaled(self):
+        f = build_features("@Delta I want a refund, charged twice")
+        self.assertIn("s[refund_request]", f)
+        self.assertTrue(all(-1.0 <= v <= 10.0 for v in f.values()))
 
 
 class TestSplits(unittest.TestCase):

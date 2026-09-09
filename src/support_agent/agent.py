@@ -15,9 +15,9 @@ from dataclasses import asdict, dataclass, field
 from typing import List, Optional
 
 from .classifiers.base import Prediction
-from .classifiers.refined import RefinedClassifier
 from .classifiers.rules import RuleClassifier
 from .classifiers.rules_refined import RULES_V2
+from .classifiers.stacked import StackedClassifier
 from .config import Config, DEFAULT
 from .data_loader import build_threads
 from .escalation import Decision, decide
@@ -47,7 +47,7 @@ class AgentResponse:
 class SupportAgent:
     def __init__(self, config: Config = DEFAULT):
         self.cfg = config
-        self.classifier: Optional[RefinedClassifier] = None
+        self.classifier: Optional[StackedClassifier] = None
         self.retriever: Optional[ResolutionRetriever] = None
         self.drafter: Optional[ReplyDrafter] = None
         # Weak-supervision teacher uses the corrected keyword table.
@@ -69,10 +69,14 @@ class SupportAgent:
         self._weak_labeler.fit(customer_texts, ["general_info"] * len(customer_texts))
         weak_labels = [self._weak_labeler.predict(t).label for t in customer_texts]
 
-        self.classifier = RefinedClassifier(
+        self.classifier = StackedClassifier(
             rule_weight=cfg.rule_weight, nb_alpha=cfg.nb_alpha,
             nb_min_df=cfg.nb_min_df, nb_ngram_range=cfg.nb_ngram_range,
-        ).fit(customer_texts, weak_labels)
+            lr=cfg.lr_learning_rate, epochs=cfg.lr_epochs, l2=cfg.lr_l2,
+            use_char=cfg.lr_use_char_ngrams,
+            min_feature_count=cfg.lr_min_feature_count,
+            student_weight=cfg.student_weight,
+        ).fit_cached(customer_texts, weak_labels, cfg.model_cache_path)
 
         self.retriever = ResolutionRetriever(ngram_range=cfg.ngram_range, min_df=1).fit(
             customer_texts, resolutions, weak_labels

@@ -1,5 +1,7 @@
 __pycache__/
 *.pyc
+# trained student weights: a build artifact, regenerated on first run (~75s)
+.cache/
 .pytest_cache/
 .DS_Store
 *.egg-info/

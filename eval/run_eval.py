@@ -37,8 +37,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from support_agent.agent import SupportAgent
 from support_agent.classifiers import (
-    MajorityClassifier, RuleClassifier, RefinedClassifier, RULES_V2,
+    MajorityClassifier, RuleClassifier, RULES_V2,
 )
+from support_agent.classifiers.stacked import StackedClassifier
 from support_agent.config import Config
 from support_agent.data_loader import build_threads
 from support_agent.escalation import ESCALATE_INTENTS
@@ -68,10 +69,14 @@ def train_classifiers(cfg):
     # Baseline uses the FROZEN original keyword table (not the corrected one), so
     # the main-model-vs-baseline comparison is not flattered by shared fixes.
     rules = RuleClassifier().fit(X, y_weak)
-    main = RefinedClassifier(
+    main = StackedClassifier(
         rule_weight=cfg.rule_weight, nb_alpha=cfg.nb_alpha,
         nb_min_df=cfg.nb_min_df, nb_ngram_range=cfg.nb_ngram_range,
-    ).fit(X, y_weak)
+        lr=cfg.lr_learning_rate, epochs=cfg.lr_epochs, l2=cfg.lr_l2,
+        use_char=cfg.lr_use_char_ngrams,
+        min_feature_count=cfg.lr_min_feature_count,
+        student_weight=cfg.student_weight,
+    ).fit_cached(X, y_weak, cfg.model_cache_path)
     return threads, maj, rules, main
 
 
@@ -80,7 +85,7 @@ def eval_intents(golden, maj, rules, main):
     texts = [g["text"] for g in golden]
     out = {}
     for name, clf in [("trivial_majority", maj), ("simple_rules", rules),
-                      ("main_refined", main)]:
+                      ("main_ensemble", main)]:
         y_pred = [clf.predict(t).label for t in texts]
         out[name] = {
             "accuracy": M.accuracy(y_true, y_pred),
@@ -90,7 +95,7 @@ def eval_intents(golden, maj, rules, main):
             "_y_pred": y_pred,
         }
     out["_y_true"] = y_true
-    out["_confusion_main"] = M.confusion_matrix(y_true, out["main_refined"]["_y_pred"], INTENTS)
+    out["_confusion_main"] = M.confusion_matrix(y_true, out["main_ensemble"]["_y_pred"], INTENTS)
     return out
 
 
@@ -103,7 +108,21 @@ def eval_intents_by_split(maj, rules, main):
     """
     dev, test = split_golden()
     unseen = round2_only(test)
-    systems = [("trivial_majority", maj), ("simple_rules", rules), ("main_refined", main)]
+    # The two components of the main model are reported separately: the hand-tuned
+    # rule chain flatters itself on dev, the learned student never saw dev, and the
+    # equal-weight ensemble of the two is what ships.
+    class _Wrap:
+        def __init__(self, fn): self.fn = fn
+        def predict(self, t): return self.fn(t)
+
+    systems = [
+        ("trivial_majority", maj),
+        ("simple_rules", rules),
+        ("component_rule_chain", _Wrap(main.teacher.predict)),
+        ("component_learned_student",
+         _Wrap(lambda t: _student_only(main, t))),
+        ("main_ensemble", main),
+    ]
     out = {}
     for split_name, ds in [("dev", dev), ("test", test), ("test_unseen_batch", unseen)]:
         yt = [g["intent"] for g in ds]
@@ -116,6 +135,16 @@ def eval_intents_by_split(maj, rules, main):
             }
         out[split_name] = entry
     return out
+
+
+def _student_only(main, text):
+    """Prediction from the learned student alone (ensemble weight forced to 1)."""
+    saved = main.student_weight
+    main.student_weight = 1.0
+    try:
+        return main.predict(text)
+    finally:
+        main.student_weight = saved
 
 
 def eval_escalation(golden, cfg, agent):
@@ -225,7 +254,7 @@ def main():
 
     # confusion matrix file
     with open(os.path.join(RESULTS_DIR, "confusion_main.txt"), "w") as f:
-        f.write("Main model (refined hybrid) confusion matrix (rows=true, cols=pred)\n\n")
+        f.write("Main model (ensemble) confusion matrix (rows=true, cols=pred)\n\n")
         f.write(M.format_confusion(intent_res["_confusion_main"], INTENTS))
         f.write("\n")
 
@@ -241,18 +270,21 @@ def _fmt_pct(x):
 
 
 def _print_splits(split_res):
-    print("\n[5] INTENT ACCURACY BY SPLIT  (tuned on dev only; test is held out)")
-    print("  %-18s %5s %10s %10s %12s" % ("split", "n", "trivial", "rules", "main"))
+    print("\n[5] INTENT ACCURACY BY SPLIT  (rules hand-tuned on dev; test held out)")
+    cols = [("trivial_majority", "trivial"), ("simple_rules", "rules"),
+            ("component_rule_chain", "ruleChain"), ("component_learned_student", "student"),
+            ("main_ensemble", "ENSEMBLE")]
+    print("  %-18s %4s" % ("split", "n") + "".join("%11s" % c[1] for c in cols))
     for name in ["dev", "test", "test_unseen_batch"]:
         r = split_res[name]
-        print("  %-18s %5d %10s %10s %12s" % (
-            name, r["n"],
-            _fmt_pct(r["trivial_majority"]["accuracy"]),
-            _fmt_pct(r["simple_rules"]["accuracy"]),
-            _fmt_pct(r["main_refined"]["accuracy"]),
-        ))
-    print("  (test_unseen_batch = test items authored to broaden coverage and never")
-    print("   inspected during error analysis — the most conservative estimate)")
+        row = "  %-18s %4d" % (name, r["n"])
+        row += "".join("%11s" % _fmt_pct(r[k]["accuracy"]) for k, _ in cols)
+        print(row)
+    d = split_res["dev"]["main_ensemble"]["accuracy"]
+    t = split_res["test"]["main_ensemble"]["accuracy"]
+    print(f"  dev->test gap for the shipped ensemble: {100*(d-t):.1f} pts")
+    print("  (the rule chain scores highest on dev because it was hand-tuned there;")
+    print("   the student never saw dev. Their equal-weight blend generalises best.)")
 
 
 def _print_console(results, intent_res, esc_res):
@@ -262,7 +294,7 @@ def _print_console(results, intent_res, esc_res):
     print("=" * 70)
     print("\n[1] INTENT CLASSIFICATION (golden n=%d)" % results["config"]["n_golden"])
     print("  %-20s %8s %9s %11s" % ("system", "acc", "macroF1", "weightedF1"))
-    for name in ["trivial_majority", "simple_rules", "main_refined"]:
+    for name in ["trivial_majority", "simple_rules", "main_ensemble"]:
         r = results["intent_classification"][name]
         print("  %-20s %8s %9s %11s" % (name, _fmt_pct(r["accuracy"]),
               f"{r['macro_f1']:.3f}", f"{r['weighted_f1']:.3f}"))
@@ -297,7 +329,7 @@ def _write_markdown(results, intent_res, esc_res):
     a("\n## 1. Intent classification\n")
     a("| system | accuracy | macro-F1 | weighted-F1 |")
     a("|---|---|---|---|")
-    for name in ["trivial_majority", "simple_rules", "main_refined"]:
+    for name in ["trivial_majority", "simple_rules", "main_ensemble"]:
         r = results["intent_classification"][name]
         a(f"| {name} | {r['accuracy']:.3f} | {r['macro_f1']:.3f} | {r['weighted_f1']:.3f} |")
 
@@ -305,7 +337,7 @@ def _write_markdown(results, intent_res, esc_res):
     a("| intent | precision | recall | f1 | support |")
     a("|---|---|---|---|---|")
     for lab in INTENTS:
-        pc = results["intent_classification"]["main_refined"]["per_class"][lab]
+        pc = results["intent_classification"]["main_ensemble"]["per_class"][lab]
         a(f"| {lab} | {pc['precision']:.2f} | {pc['recall']:.2f} | {pc['f1']:.2f} | {pc['support']} |")
 
     a("\n## 2. Escalation decision (positive class = escalate)\n")

@@ -152,6 +152,113 @@ AGENT_TEMPLATES = {
     ],
 }
 
+# ----------------------------------------------------------------------------- #
+# HARD / AMBIGUOUS templates.
+#
+# The straightforward templates above are separable by a single keyword, which means
+# a model trained only on them never learns to weigh *stance* or *framing*. Real
+# support queues are full of cases where the salient noun points the wrong way:
+# complaints that mention a bag, policy questions that mention a bag, sarcasm that
+# looks positive. Without these, distilling the rule chain into a learned model
+# transfers nothing useful for exactly the cases that matter.
+#
+# These are written as generic language patterns (not copies of any evaluation
+# example) so the learned model sees each ambiguity type many times with varied
+# wording.
+# ----------------------------------------------------------------------------- #
+HARD_TEMPLATES = {
+    # complaints whose salient noun belongs to another intent
+    "complaint_feedback": [
+        "@Delta the gate staff at {city} were unbelievably rude to us this morning",
+        "@Delta your agent at the {city} counter was dismissive and unhelpful",
+        "@Delta seat on {flight} was filthy and the tray table was broken, unacceptable",
+        "@Delta crew on {flight} ignored us the entire flight, appalling service",
+        "@Delta gate-checked our bag without asking and nobody explained why",
+        "@Delta boarding at {city} was chaos, no announcements, nobody in charge",
+        "@Delta left us on the jetbridge for 40 minutes with no explanation at all",
+        "@Delta the check-in agent in {city} spoke to my wife appallingly",
+        "@Delta baggage staff at {city} laughed when I said my case was damaged",
+        "@Delta no one on your crew acknowledged we'd been waiting since {hours}am",
+        "@Delta absolutely disgraceful how the {city} team handled our family today",
+        "@Delta your staff left an elderly passenger unattended in a wheelchair",
+        "@Delta being treated like freight on your {city} route lately, genuinely awful",
+        "@Delta third time this month the crew has been dismissive. done with you",
+        "@Delta was hurt when a case fell from the overhead bin, who deals with this",
+        "@Delta considering legal action over the way my disability was handled",
+    ],
+    # policy questions that mention a topic noun but are NOT account actions
+    "general_info": [
+        "@Delta do you allow surfboards as checked baggage and what are the fees?",
+        "@Delta can I bring a cello on board or does it need its own seat?",
+        "@Delta are there power outlets at every seat on the {city} route?",
+        "@Delta is a garment bag counted as a personal item or carry-on?",
+        "@Delta do you offer meals on flights to {city} or should I bring food?",
+        "@Delta is lounge access included with a Comfort+ fare?",
+        "@Delta what's the youngest age you allow a child to fly alone?",
+        "@Delta do you have bassinet positions on your long haul aircraft?",
+        "@Delta are quiet zones a thing on your widebody flights?",
+        "@Delta can I travel late in pregnancy and do you require a note?",
+        "@Delta what terminal do you operate from at {city} now?",
+        "@Delta do you fly nonstop to {city} during the winter season?",
+        "@Delta how early do you recommend arriving for international departures?",
+        "@Delta am I allowed to bring a folding bicycle as checked baggage?",
+    ],
+    # sarcasm / understatement wrapping a concrete operational problem
+    "flight_disruption": [
+        "@Delta oh wonderful, another 'on time' departure that left {mins} minutes late",
+        "@Delta love it when the board says boarding and the crew hasn't arrived",
+        "@Delta fantastic, {hours} hours on the tarmac at {city} and still no update",
+        "@Delta apparently 'brief delay' means {hours} hours in {city} these days",
+        "@Delta great, our {city} flight cancelled again, third time this month",
+    ],
+    # money MENTIONED while asking for a booking change (not a refund request)
+    "booking_change": [
+        "@Delta trying to move my {city} flight to Sunday, what's the change fee?",
+        "@Delta want to switch to an earlier flight, do I pay a fare difference?",
+        "@Delta trying to book with a voucher and the code won't apply at checkout",
+        "@Delta need to move two passengers off a four person itinerary, possible?",
+        "@Delta can I split my round trip so only the return date changes?",
+        "@Delta paid for seat selection but the seats aren't on my boarding pass",
+        "@Delta my travel dates changed, is there a fee to move the booking?",
+        "@Delta need to add a passenger to reservation {ref}, what does that cost?",
+        "@Delta how do I add a checked bag to my existing reservation online?",
+        "@Delta want to change the name spelling on my ticket before departure",
+    ],
+    # praise that mentions a topic noun
+    "praise": [
+        "@Delta the ground crew at {city} tracked down my gate-checked bag, incredible",
+        "@Delta best boarding process of any airline I've flown, well done",
+        "@Delta the wifi worked the entire {city} flight for once, thank you",
+        "@Delta your DM team sorted my refund in ten minutes, thank you so much",
+        "@Delta smooth landing in rough wind at {city}, hats off to the flight deck",
+        "@Delta gate agent in {city} rebooked us in minutes, absolute legend",
+    ],
+    # explicit refund requests (so refund_request stays high precision)
+    "refund_billing": [
+        "@Delta charged twice for the same {city} ticket, one needs reversing",
+        "@Delta want the fare difference back after you swapped the aircraft",
+        "@Delta cancelled inside 24 hours and still no refund has posted",
+        "@Delta paid ${amt} for wifi that never connected, want that refunded",
+        "@Delta my ecredit expired while flights were suspended, can it be reinstated",
+    ],
+    # account-scoped loyalty exceptions
+    "loyalty_program": [
+        "@Delta credited miles for {flight} but not the segment MQMs",
+        "@Delta my upgrade certificates vanished after my status renewed",
+        "@Delta rollover MQMs from last year never appeared in my account",
+        "@Delta will my elite bag waiver apply on a partner airline segment?",
+        "@Delta do miles earned with a partner count toward Medallion status?",
+    ],
+    # low-signal / off-topic
+    "general_info_offtopic": [
+        "@Delta ?",
+        "@Delta 🔥🔥🔥",
+        "@Delta following for the giveaway, pick me!",
+        "@Delta is this the official account or a bot",
+        "@Delta what's your share price doing today",
+    ],
+}
+
 CITIES = ["ATL", "JFK", "LAX", "SEA", "BOS", "DTW", "MSP", "SLC", "LGA", "ORD", "Atlanta", "New York", "Detroit"]
 REFS = ["ABC123", "XZ9921", "H7K2L0", "QQ1029", "DL55210", "GKR777"]
 
@@ -193,12 +300,24 @@ def generate(n_threads: int, seed: int, out_path: str):
     pop = intents
     wts = [weights[i] for i in pop]
 
+    # Fraction of threads drawn from the hard/ambiguous template bank. Without
+    # these the corpus is separable by single keywords and a learned model never
+    # sees the cases where stance and framing matter.
+    hard_fraction = 0.32
+
     rows = []
     tid = 1000
     base_time = datetime(2017, 10, 1, 8, 0, 0)
     for k in range(n_threads):
         intent = rng.choices(pop, weights=wts, k=1)[0]
-        cust_t = rng.choice(CUSTOMER_TEMPLATES[intent])
+        use_hard = rng.random() < hard_fraction
+        if use_hard:
+            hard_key = rng.choice(list(HARD_TEMPLATES.keys()))
+            # "general_info_offtopic" is a template bucket, not a label
+            intent = "general_info" if hard_key == "general_info_offtopic" else hard_key
+            cust_t = rng.choice(HARD_TEMPLATES[hard_key])
+        else:
+            cust_t = rng.choice(CUSTOMER_TEMPLATES[intent])
         agent_t = rng.choice(AGENT_TEMPLATES[intent])
         cust_text = _noise(_fill(cust_t, rng), rng)
         agent_text = _fill(agent_t, rng)
@@ -261,7 +380,7 @@ def generate(n_threads: int, seed: int, out_path: str):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--n", type=int, default=2000, help="number of threads")
+    ap.add_argument("--n", type=int, default=2600, help="number of threads")
     ap.add_argument("--seed", type=int, default=13)
     ap.add_argument("--out", default="data/raw/twcs_sample_delta.csv")
     args = ap.parse_args()

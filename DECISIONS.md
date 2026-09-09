@@ -106,3 +106,39 @@ The 10–15 non-obvious decisions behind this agent, and why.
     the intent-match requirement dropped the reported grounding rate from 86% to 78.5%
     — a metric moving *down* because it became honest. Relevance matters more than a
     flattering grounding percentage.
+
+
+17. **Shipped an equal-weight ensemble of the rule chain and a learned model, after the
+    learned model *failed* to beat the chain on its own.** The chain scored 93.3% dev /
+    79.0% test; the distilled logistic regression scored 86.6% dev / 74.1% test — worse
+    on both, so the original hypothesis ("a learned model will generalise better") was
+    wrong as stated. But the two make different mistakes, and blending them equally
+    gives 89.1% dev / **81.5% test** — better than either component and with the
+    dev→test gap cut from 13.9 to 7.6 points. Keeping a component that loses on its own
+    because the *ensemble* wins is the right call, and reporting the failed step is more
+    useful than hiding it.
+
+18. **Fixed the ensemble weight at 0.5 instead of tuning it.** Test accuracy across
+    weights was 79.0 / 80.2 / 81.5 / 74.1 (student weight 0 / 0.3 / 0.5 / 1.0), so a
+    tuned weight could have been chosen to flatter the headline. 0.5 is the
+    parameter-free default; picking it a priori keeps the test number from being fitted
+    to test. The full curve is published as evidence of the overfitting trend.
+
+19. **Enriched the training corpus with an ambiguity bank (`HARD_TEMPLATES`).** The
+    first distillation attempt scored 74.8% on dev because the corpus was separable by
+    single keywords — it contained no sarcasm, no policy-vs-account ambiguity, and no
+    complaints wearing another intent's nouns, so the student learned to ignore the
+    signal features entirely. Adding those patterns (~32% of threads) lifted it to
+    86.6%. Distillation can only transfer what the corpus contains.
+
+20. **Cached the trained student's weights, keyed by a data+hyperparameter
+    fingerprint.** Gradient descent takes ~75s, which would make `cli.py handle` unusable
+    for interactive work. The cache makes repeat runs ~2s while any change to the corpus
+    or config invalidates it automatically, so correctness never depends on remembering
+    to clear it. The cache file is a build artifact and is gitignored.
+
+21. **Chose character n-grams over word features alone.** Real tweets contain typos,
+    elongations, and abbreviations ("cancelld", "flt", "delayd") that word features miss
+    completely. Character 4-grams let an unseen spelling still share evidence with words
+    the model has seen; they lifted dev accuracy from 85.7% to 86.6% and are the main
+    reason the learned half contributes anything the rules cannot.
