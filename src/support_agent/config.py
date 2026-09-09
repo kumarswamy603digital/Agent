@@ -39,7 +39,7 @@ class Config:
     min_retrieval_sim: float = 0.08
 
     # --- llm backend ---
-    # "heuristic" (offline, deterministic, default) | "openai" | "anthropic"
+    # "heuristic" (deterministic, no API key, default) | "openai" | "anthropic"
     llm_backend: str = os.environ.get("SUPPORT_AGENT_LLM", "heuristic")
     llm_model: str = os.environ.get("SUPPORT_AGENT_LLM_MODEL", "")
 

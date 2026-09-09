@@ -1,4 +1,4 @@
-"""LLM-as-judge for reply quality, with an offline deterministic fallback.
+"""LLM-as-judge for reply quality, with a deterministic default fallback.
 
 Rubric (each scored 0/1/2, higher is better):
   * relevance     — does the reply address the customer's actual ask/intent?
@@ -16,8 +16,8 @@ Two implementations behind one interface:
   * LLMJudge      — asks a hosted model to fill the rubric as JSON (needs a
                     backend with network+key). This is the judge you'd use in
                     production.
-  * HeuristicJudge— deterministic rubric scorer using lexical signals. Runs
-                    offline and is what produces the reproducible numbers here.
+  * HeuristicJudge— deterministic rubric scorer using lexical signals. Needs no
+                    API key and is what produces the reproducible numbers here.
                     We MEASURE this judge against human labels (Cohen's kappa)
                     so its trustworthiness is quantified, not assumed.
 """
@@ -171,7 +171,7 @@ class LLMJudge:
 
 def get_judge(backend: Optional[LLMBackend] = None):
     """Return an LLM judge if a real (non-heuristic) backend is wired, else the
-    deterministic heuristic judge used for offline reproducibility."""
+    deterministic rubric judge used for stable reproducibility."""
     if backend is not None and not isinstance(backend, HeuristicBackend):
         return LLMJudge(backend)
     return HeuristicJudge()

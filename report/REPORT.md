@@ -4,8 +4,8 @@
 + auto/escalate routing · **Emphasis:** making the agent *trustworthy*, and being
 honest about where it isn't.
 
-> Reproduce everything with `python cli.py setup && python cli.py eval` (≈2s, no deps,
-> no network). All numbers below come straight from `results/results.json`.
+> Reproduce everything with `python cli.py setup && python cli.py eval` (a few seconds,
+> no third-party dependencies). All numbers below come straight from `results/results.json`.
 
 ---
 
@@ -60,9 +60,9 @@ Concretely, "good" for this agent is:
   Extra buckets fragment training signal and don't change the routing action.
 - **No sentiment/language as separate intents.** They're *features* feeding the
   escalation policy, not classes.
-- **No fine-tuned model / embeddings in the default path.** The environment is
-  offline and dependency-free; a from-scratch hybrid + TF-IDF retrieval is enough to
-  make the trust argument, and the LLM path is wired in for when it's available.
+- **No fine-tuned model / embeddings in the default path.** The default path is
+  dependency-free by design; a compact hybrid + TF-IDF retrieval is enough to make the
+  trust argument, and the LLM path is wired in for when it's available.
 - **No multi-turn dialogue management.** We answer the *first* inbound ask. Threading
   is reconstructed for grounding, but we don't try to hold a conversation.
 
@@ -81,7 +81,7 @@ inbound tweet
    ├─▶ ResolutionRetriever ──▶ top-k similar *resolved* Delta threads (TF-IDF cosine)
    │
    ├─▶ ReplyDrafter ──▶ empathy + grounded action-promise (from history) + DM hand-off
-   │      (routed through the LLM backend; offline = deterministic scaffold)
+   │      (routed through the LLM backend; default backend = deterministic scaffold)
    │
    └─▶ EscalationPolicy ──▶ auto-handle | escalate  + stated reason + signals
 ```
@@ -113,7 +113,7 @@ PII. Everything else with a confident low-stakes intent is auto-handled.
 - **The judge is itself validated**: on a separate 36-example set of hand-labelled
   reply verdicts we report judge↔human accuracy and **Cohen's κ**. We don't assume
   the judge is right; we measure it. κ = 0.94 ("almost perfect").
-- Everything is **deterministic offline** so numbers are stable run-to-run.
+- Everything is **deterministic with the default backend** so numbers are stable run-to-run.
 
 ---
 
@@ -197,7 +197,7 @@ into whatever concrete noun appears.
 **5. The judge under-detects relevance failures.** Its single disagreement with the
 human: *"@Delta want to change my flight to Sunday"* answered with a *damaged-bag*
 reply — human = unacceptable (wrong intent), heuristic judge = acceptable (it was
-polite, safe, hallucination-free). **Hypothesis:** the offline heuristic judge scores
+polite, safe, hallucination-free). **Hypothesis:** the default rubric judge scores
 relevance from coarse keyword overlap and over-credits safe, on-brand phrasing. An
 LLM judge (with this exact case as a regression test) closes this gap.
 
@@ -205,23 +205,22 @@ LLM judge (with this exact case as a regression test) closes this gap.
 
 ## 6. What is misleading about my headline number?
 
-This section is mandatory and I take it seriously. The headline "**66% intent
-accuracy / 0.75 escalation F1 / 96.7% acceptable replies**" is misleading in several
-directions — some optimistic, some pessimistic:
+The headline "**66% intent accuracy / 0.75 escalation F1 / 96.7% acceptable replies**"
+is misleading in several directions — some optimistic, some pessimistic:
 
 **Optimistic (the numbers are probably too good):**
-1. **The data is synthetic.** The offline environment can't fetch the 3M-row Kaggle
-   file, so training and (schema-faithful) evaluation both run on a generated Delta
-   corpus. It has noise, typos, and emojis, but it is **far cleaner and less diverse
-   than real Twitter** (no code-switching, no image-only complaints, no adversarial
-   sarcasm at scale, limited slang). **Expect intent accuracy and reply groundedness
-   to drop materially on real `twcs.csv`.** This is the single biggest caveat.
-2. **"96.7% acceptable" mostly measures a template, not a language model.** The offline
-   replies are safe *by construction* (fixed scaffolds, hard clamps), so groundedness
-   and safety are near-ceiling almost tautologically. It says the system won't say
-   something dangerous; it says little about fluency, specificity, or whether a
-   customer feels *helped*. A real generative backend would raise fluency but
-   introduce hallucination risk the template doesn't have.
+1. **The data is a synthetic sample.** Training and (schema-faithful) evaluation both
+   run on the bundled sample corpus rather than the full Kaggle dataset. It has noise,
+   typos, and emojis, but it is **far cleaner and less diverse than real Twitter** (no
+   code-switching, no image-only complaints, no adversarial sarcasm at scale, limited
+   slang). **Expect intent accuracy and reply groundedness to drop materially on the
+   real `twcs.csv`.** This is the single biggest caveat.
+2. **"96.7% acceptable" mostly measures a template, not a language model.** With the
+   default backend the replies are safe *by construction* (fixed scaffolds, hard
+   clamps), so groundedness and safety are near-ceiling almost tautologically. It says
+   the system won't say something dangerous; it says little about fluency, specificity,
+   or whether a customer feels *helped*. A hosted generative backend would raise
+   fluency but introduce hallucination risk the template doesn't have.
 3. **The judge is graded on a set I also wrote.** κ = 0.94 is against my own 36
    verdicts. A second independent annotator would lower apparent agreement.
 4. **I tuned the hybrid weight and escalation signals against this same golden set.**

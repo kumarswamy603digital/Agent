@@ -1,4 +1,4 @@
-"""Core invariant tests (stdlib unittest, no deps).
+"""Core invariant tests (standard-library unittest only).
 
 Run: python -m unittest discover -s tests -v
 """

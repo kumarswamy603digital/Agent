@@ -9,9 +9,9 @@ customer. So the drafter:
      concrete next step -> hand-off channel).
   3. Grounds the "next step" in what the retrieved resolutions actually did
      (e.g. "send us your confirmation # via DM").
-  4. Passes the assembled draft through the LLM backend. Offline this is a
-     no-op smoothing pass (deterministic); with a hosted backend it rewrites
-     the scaffold into fluent prose while being told to stay grounded.
+  4. Passes the assembled draft through the LLM backend. With the default
+     backend this is a no-op smoothing pass (deterministic); with a hosted
+     backend it rewrites the scaffold into fluent prose while staying grounded.
 
 Every draft carries the evidence (retrieved exemplars) so a reviewer can audit
 what it was grounded in.
@@ -150,7 +150,7 @@ class ReplyDrafter:
         scaffold = SCAFFOLDS.get(intent, SCAFFOLDS["uncertain"])
         draft = scaffold.format(evidence=evidence_line).replace("  ", " ").strip()
 
-        # Route through backend (offline: deterministic passthrough of `draft`).
+        # Route through backend (default backend: deterministic passthrough of `draft`).
         control = json.dumps({"draft": draft})
         user = (
             f"DRAFT:\n{draft}\n\nEVIDENCE (historical resolutions):\n"
