@@ -148,3 +148,53 @@
 {"id": "g148", "text": "@Delta i demand a full refund and compensation for this disaster of a trip", "intent": "refund_billing", "escalate": true, "note": "refund + compensation demand"}
 {"id": "g149", "text": "@Delta how do I opt into standby for an earlier flight at the airport?", "intent": "check_in_boarding", "escalate": false, "note": "how-to"}
 {"id": "g150", "text": "@Delta your app says gate B12 but the screens say B26, which is right??", "intent": "flight_disruption", "escalate": false, "note": "gate confusion, info-ish, no account action"}
+{"id": "g151", "text": "@Delta inbound aircraft never arrived so we're delayed indefinitely, what happens to my Tokyo connection", "intent": "flight_disruption", "escalate": true, "note": "misconnect risk, needs rebooking"}
+{"id": "g152", "text": "@Delta they announced a crew shortage and cancelled us, rebooking line is 200 people deep", "intent": "flight_disruption", "escalate": true, "note": "cancellation, reaccommodation"}
+{"id": "g153", "text": "@Delta third mechanical delay on the same aircraft tonight, are we actually leaving", "intent": "flight_disruption", "escalate": true, "note": "repeat delay, needs answer"}
+{"id": "g154", "text": "@Delta we were deplaned with no explanation and the board still says on time", "intent": "flight_disruption", "escalate": true, "note": "operational confusion"}
+{"id": "g155", "text": "@Delta if my first leg is late does Delta automatically rebook the second leg?", "intent": "flight_disruption", "escalate": false, "note": "policy how-to, no account action"}
+{"id": "g156", "text": "@Delta any chance the 7pm to Nashville gets cancelled with this front coming through", "intent": "flight_disruption", "escalate": false, "note": "speculative status question"}
+{"id": "g157", "text": "@Delta do delays like this usually clear up or should I look at another carrier", "intent": "flight_disruption", "escalate": false, "note": "general advice question"}
+{"id": "g158", "text": "@Delta three of us landed, only two bags did. same booking", "intent": "baggage", "escalate": true, "note": "partial bag delivery, needs report"}
+{"id": "g159", "text": "@Delta my bag has been sitting 'in transit' on the tracker for 48 hours", "intent": "baggage", "escalate": true, "note": "stalled tracking, escalate"}
+{"id": "g160", "text": "@Delta is a duffel counted as a personal item or a carry-on?", "intent": "baggage", "escalate": false, "note": "policy info"}
+{"id": "g161", "text": "@Delta zipper was torn open and a camera is missing from my checked bag", "intent": "baggage", "escalate": true, "note": "theft/damage claim"}
+{"id": "g162", "text": "@Delta what's the cutoff time for checking bags on domestic departures?", "intent": "baggage", "escalate": false, "note": "policy info"}
+{"id": "g163", "text": "@Delta bag finally arrived but the contents are soaked through", "intent": "baggage", "escalate": true, "note": "damage claim"}
+{"id": "g164", "text": "@Delta need to move two passengers off a four-person itinerary, possible?", "intent": "booking_change", "escalate": true, "note": "partial itinerary change, agent needed"}
+{"id": "g165", "text": "@Delta can I split my round trip so only the return changes?", "intent": "booking_change", "escalate": true, "note": "complex change, agent needed"}
+{"id": "g166", "text": "@Delta what happens to my seat assignment if I switch flights?", "intent": "booking_change", "escalate": false, "note": "policy question"}
+{"id": "g167", "text": "@Delta trying to book with a voucher and it won't accept the code", "intent": "booking_change", "escalate": true, "note": "voucher/payment issue"}
+{"id": "g168", "text": "@Delta is same-day confirmed change free for Gold members?", "intent": "booking_change", "escalate": false, "note": "policy question"}
+{"id": "g169", "text": "@Delta my travel dates changed, do I pay the fare difference?", "intent": "booking_change", "escalate": false, "note": "policy question"}
+{"id": "g170", "text": "@Delta cancelled within 24 hours like your policy says, still no refund posted", "intent": "refund_billing", "escalate": true, "note": "refund not received"}
+{"id": "g171", "text": "@Delta seat upgrade charged twice, one needs reversing", "intent": "refund_billing", "escalate": true, "note": "duplicate charge"}
+{"id": "g172", "text": "@Delta how long do refunds normally take to hit a credit card?", "intent": "refund_billing", "escalate": false, "note": "pure how-to"}
+{"id": "g173", "text": "@Delta paid for premium seats then the aircraft swapped to one without them, want the difference back", "intent": "refund_billing", "escalate": true, "note": "fare difference claim"}
+{"id": "g174", "text": "@Delta my ecredit expired while flights were suspended, can it be reinstated", "intent": "refund_billing", "escalate": true, "note": "credit reinstatement"}
+{"id": "g175", "text": "@Delta was charged in dollars but billed in euros with an extra fee, who fixes that", "intent": "refund_billing", "escalate": true, "note": "billing dispute"}
+{"id": "g176", "text": "@Delta app says check-in unavailable for this itinerary, no reason given", "intent": "check_in_boarding", "escalate": true, "note": "blocked check-in, needs lookup"}
+{"id": "g177", "text": "@Delta can I check in for both passengers from one phone?", "intent": "check_in_boarding", "escalate": false, "note": "how-to"}
+{"id": "g178", "text": "@Delta my boarding group changed from A to C after I already checked in", "intent": "check_in_boarding", "escalate": false, "note": "inquiry, low stakes"}
+{"id": "g179", "text": "@Delta scanner wouldn't read my pass at the gate and they sent me to the counter", "intent": "check_in_boarding", "escalate": true, "note": "airport blocker"}
+{"id": "g180", "text": "@Delta how do I get a paper boarding pass if my phone dies?", "intent": "check_in_boarding", "escalate": false, "note": "how-to"}
+{"id": "g181", "text": "@Delta credited the miles for my flight but not the segment MQMs", "intent": "loyalty_program", "escalate": true, "note": "partial credit, account lookup"}
+{"id": "g182", "text": "@Delta do miles from a partner airline count toward Medallion?", "intent": "loyalty_program", "escalate": false, "note": "policy info"}
+{"id": "g183", "text": "@Delta my upgrade certificates disappeared after my status renewed", "intent": "loyalty_program", "escalate": true, "note": "missing benefits"}
+{"id": "g184", "text": "@Delta how do I use miles to upgrade a companion's ticket?", "intent": "loyalty_program", "escalate": false, "note": "how-to"}
+{"id": "g185", "text": "@Delta rollover MQMs from last year never appeared in my account", "intent": "loyalty_program", "escalate": true, "note": "missing MQMs"}
+{"id": "g186", "text": "@Delta boarded us then left us sitting with no air conditioning for an hour, unacceptable", "intent": "complaint_feedback", "escalate": true, "note": "onboard conditions complaint"}
+{"id": "g187", "text": "@Delta the agent rolled her eyes at me when I asked a simple question", "intent": "complaint_feedback", "escalate": true, "note": "staff conduct complaint"}
+{"id": "g188", "text": "@Delta being treated like cargo on this airline lately, genuinely awful", "intent": "complaint_feedback", "escalate": true, "note": "general service complaint"}
+{"id": "g189", "text": "@Delta nobody on your crew acknowledged we'd been waiting since 5am, appalling", "intent": "complaint_feedback", "escalate": true, "note": "service complaint"}
+{"id": "g190", "text": "@Delta the way your staff spoke to my elderly mother was shameful", "intent": "complaint_feedback", "escalate": true, "note": "staff conduct + vulnerable"}
+{"id": "g191", "text": "@Delta third time this month your crew has been dismissive, done with you", "intent": "complaint_feedback", "escalate": true, "note": "repeat complaint, churn risk"}
+{"id": "g192", "text": "@Delta the ground crew in Fargo went out in a blizzard to find my gate-checked bag, incredible", "intent": "praise", "escalate": false, "note": "praise"}
+{"id": "g193", "text": "@Delta smooth landing in rough wind, hats off to the flight deck", "intent": "praise", "escalate": false, "note": "praise"}
+{"id": "g194", "text": "@Delta your DM team solved in ten minutes what the phone line couldn't in two hours, thank you", "intent": "praise", "escalate": false, "note": "praise"}
+{"id": "g195", "text": "@Delta flight attendant Marcus made my anxious first flight so much easier, thank him for me", "intent": "praise", "escalate": false, "note": "praise"}
+{"id": "g196", "text": "@Delta do you offer seatback screens on transcon routes?", "intent": "general_info", "escalate": false, "note": "product info"}
+{"id": "g197", "text": "@Delta what's the youngest age for a child to fly as an unaccompanied minor?", "intent": "general_info", "escalate": true, "note": "UM safety policy"}
+{"id": "g198", "text": "@Delta is Sky Priority boarding included with a Comfort+ fare?", "intent": "general_info", "escalate": false, "note": "policy info"}
+{"id": "g199", "text": "@Delta are there quiet zones or family sections on your widebodies?", "intent": "general_info", "escalate": false, "note": "product info"}
+{"id": "g200", "text": "@Delta can I travel in my final trimester and do you need a doctor's note?", "intent": "general_info", "escalate": true, "note": "medical clearance"}

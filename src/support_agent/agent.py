@@ -15,8 +15,9 @@ from dataclasses import asdict, dataclass, field
 from typing import List, Optional
 
 from .classifiers.base import Prediction
-from .classifiers.hybrid import HybridClassifier
+from .classifiers.refined import RefinedClassifier
 from .classifiers.rules import RuleClassifier
+from .classifiers.rules_refined import RULES_V2
 from .config import Config, DEFAULT
 from .data_loader import build_threads
 from .escalation import Decision, decide
@@ -46,10 +47,11 @@ class AgentResponse:
 class SupportAgent:
     def __init__(self, config: Config = DEFAULT):
         self.cfg = config
-        self.classifier: Optional[HybridClassifier] = None
+        self.classifier: Optional[RefinedClassifier] = None
         self.retriever: Optional[ResolutionRetriever] = None
         self.drafter: Optional[ReplyDrafter] = None
-        self._weak_labeler = RuleClassifier()
+        # Weak-supervision teacher uses the corrected keyword table.
+        self._weak_labeler = RuleClassifier(rules_table=RULES_V2)
 
     # ------------------------------------------------------------------ build
     def build(self, threads=None):
@@ -67,7 +69,7 @@ class SupportAgent:
         self._weak_labeler.fit(customer_texts, ["general_info"] * len(customer_texts))
         weak_labels = [self._weak_labeler.predict(t).label for t in customer_texts]
 
-        self.classifier = HybridClassifier(
+        self.classifier = RefinedClassifier(
             rule_weight=cfg.rule_weight, nb_alpha=cfg.nb_alpha,
             nb_min_df=cfg.nb_min_df, nb_ngram_range=cfg.nb_ngram_range,
         ).fit(customer_texts, weak_labels)

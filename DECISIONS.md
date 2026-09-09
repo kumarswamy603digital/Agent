@@ -31,8 +31,25 @@ The 10–15 non-obvious decisions behind this agent, and why.
    *matched* the rules on the golden set. Blending — trust rules when a domain keyword
    fires, defer to NB when they're silent instead of guessing the majority — lifted
    accuracy 55%→66% and yields one coherent probability for the abstain/escalation
-   gate. Chose a blend weight of 0.7 by a small sweep (disclosed as mild eval-set
-   fitting).
+   gate. Chose a blend weight of 0.7 by a small sweep on the dev split.
+
+6b. **Added a signal-disambiguation layer on top of the blend (66% → 80%+).** Error
+   analysis showed three failures a bag-of-words model *cannot* fix by reweighting
+   words: complaints being absorbed by whatever noun appears, policy questions looking
+   like account actions, and money being *mentioned* rather than *requested*. These are
+   about stance and grammatical framing, so they get explicit detectors
+   (`signals.py`) applied as an ordered override chain that records why each override
+   fired. Chose transparent regex/lexicon detectors over a learned model because they
+   need no labelled data and a support lead can audit and edit them — while
+   documenting that a learned version should replace them (see the report's next-steps).
+
+6c. **Split the golden set into dev/test *before* tuning, and froze the baseline's
+   keyword table.** Hand-tuned rules can trivially memorise an evaluation set, so all
+   iteration used the dev half and the test half was scored once at the end
+   (`eval/splits.py`). Fixes discovered during error analysis went into a *separate*
+   corrected table used only by the main model, so the main-vs-baseline comparison
+   isn't flattered by shared improvements. The resulting 13.9-point dev→test gap is
+   reported as a headline caveat rather than buried.
 
 7. **Naive Bayes over logistic regression** for the ML component: one-pass, no SGD
    seeding/convergence variance (so results are bit-stable), and its class-conditional
@@ -80,3 +97,12 @@ The 10–15 non-obvious decisions behind this agent, and why.
     This makes the pipeline runnable end-to-end without a multi-gigabyte download;
     `data_loader` reads the real file unchanged via `TWCS_PATH`. The synthetic-data
     caveat is the #1 item in the report's "what's misleading" section.
+
+
+16. **A reply only counts as "grounded" when the retrieved exemplar shares the
+    predicted intent.** The retriever backs off to unfiltered results for sparse
+    intents, which let a low-similarity SkyMiles resolution supply the next step for a
+    baggage-policy question ("Great question! *We'll check on those miles.*"). Adding
+    the intent-match requirement dropped the reported grounding rate from 86% to 78.5%
+    — a metric moving *down* because it became honest. Relevance matters more than a
+    flattering grounding percentage.

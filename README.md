@@ -40,23 +40,31 @@ python cli.py eval
 Computed on the bundled sample corpus (see [Data](#data) below) with the default
 zero-dependency backend and judge.
 
-**Intent classification** (golden set, n=150):
+**Intent classification.** The 200-example golden set is split into a **dev half used
+for all tuning** and a **held-out test half scored only once, at the end**. The
+held-out number is the one to trust:
 
-| system | accuracy | macro-F1 |
-|---|---|---|
-| trivial (majority class) | 16.0% | 0.03 |
-| simple (keyword rules) | 55.3% | 0.55 |
-| **main (rule + Naive Bayes hybrid)** | **66.0%** | **0.65** |
+| split | n | trivial (majority) | simple (keyword rules) | **main model** |
+|---|---|---|---|---|
+| dev (tuned on) | 119 | 16.0% | 55.5% | 94.1% |
+| **test (held out)** | **81** | **14.8%** | **55.6%** | **80.2%** |
+| test ∩ never-inspected batch | 17 | 17.6% | 70.6% | 88.2% |
+| whole set | 200 | 15.5% | 55.5% | **88.5%** (macro-F1 0.89) |
 
-**Escalation decision** (positive class = *escalate*):
+The 13.9-point dev→test gap is the honest cost of hand-tuning against dev; the report
+discusses it as the largest measured weakness.
+
+**Escalation decision** (positive class = *escalate*, whole set):
 
 | policy | precision | recall | F1 | auto-handle rate | missed-escalation rate |
 |---|---|---|---|---|---|
 | trivial (escalate everything) | 0.59 | 1.00 | 0.74 | 0% | 0% |
-| simple (intent-only rule) | 0.83 | 0.34 | 0.48 | 66% | 38.7% |
-| **full agent** | **0.82** | **0.68** | **0.75** | **51%** | **18.7%** |
+| simple (intent-only rule) | 0.80 | 0.41 | 0.54 | 60% | 34.5% |
+| **full agent** | **0.80** | **0.70** | **0.75** | **49%** | **17.5%** |
 
-**Reply quality** (scored by the judge): 96.7% acceptable, 83% grounded in retrieved history.
+**Reply quality** (scored by the judge): 93.5% acceptable, 78.5% grounded in retrieved
+history (a reply counts as grounded only when the retrieved exemplar shares the
+predicted intent).
 
 **Judge trustworthiness**: on 36 hand-labelled reply verdicts, judge↔human agreement is
 **97.2%**, **Cohen's κ = 0.94**.
@@ -142,7 +150,7 @@ policy, and evaluation harness run against real data.
 | File | What it is |
 |---|---|
 | `data/raw/twcs_sample_delta.csv` | Self-contained sample corpus in the Kaggle `twcs.csv` schema, produced by `scripts/generate_sample_data.py`. Used so the pipeline runs end-to-end without the full download. |
-| `data/golden/golden_eval.jsonl` | 150 hand-labelled examples (intent + escalation). |
+| `data/golden/golden_eval.jsonl` | 200 hand-labelled examples (intent + escalation), split into dev/test by `eval/splits.py`. |
 | `data/golden/judge_agreement.jsonl` | 36 hand-labelled reply-quality verdicts used to validate the judge. |
 | `data/golden/README.md` | How the golden sets were sampled and labelled. |
 
@@ -158,11 +166,14 @@ Agent/
 │   ├── data_loader.py           
 │   ├── text.py                  
 │   ├── vectorizer.py          
+│   ├── signals.py
 │   ├── classifiers/
 │   │   ├── trivial.py           
 │   │   ├── rules.py            
 │   │   ├── nb.py              
-│   │   └── hybrid.py          
+│   │   ├── hybrid.py          
+│   │   ├── rules_refined.py
+│   │   └── refined.py
 │   ├── retriever.py            
 │   ├── reply.py                 
 │   ├── escalation.py          
@@ -170,6 +181,7 @@ Agent/
 │   └── agent.py                
 ├── eval/
 │   ├── metrics.py              
+│   ├── splits.py
 │   ├── judge.py                
 │   └── run_eval.py             
 ├── data/                        

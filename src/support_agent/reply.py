@@ -142,10 +142,17 @@ class ReplyDrafter:
         grounded = False
         evidence_line = FALLBACK_EVIDENCE.get(intent, "")
         if exemplars:
-            summ = _summarize_resolution(exemplars[0].resolution_text)
-            if summ and exemplars[0].similarity >= self.min_sim:
-                evidence_line = summ
-                grounded = True
+            top = exemplars[0]
+            # Only borrow a historical action promise when the exemplar is actually
+            # about the same thing. The retriever backs off to unfiltered results
+            # when an intent has few matches, which previously let (for example) a
+            # SkyMiles resolution supply the next step for a baggage-policy question.
+            same_intent = (intent == "uncertain") or (top.intent == intent)
+            if same_intent and top.similarity >= self.min_sim:
+                summ = _summarize_resolution(top.resolution_text)
+                if summ:
+                    evidence_line = summ
+                    grounded = True
 
         scaffold = SCAFFOLDS.get(intent, SCAFFOLDS["uncertain"])
         draft = scaffold.format(evidence=evidence_line).replace("  ", " ").strip()

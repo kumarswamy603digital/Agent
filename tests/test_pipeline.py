@@ -18,9 +18,11 @@ from support_agent.data_loader import build_threads
 from support_agent.escalation import decide
 from support_agent.classifiers.base import Prediction
 from support_agent.intents import INTENTS, ABSTAIN
+from support_agent.signals import analyze
 from support_agent.text import tokenize, normalize
 from support_agent.vectorizer import TfidfVectorizer, cosine
 from eval import metrics as M
+from eval.splits import load_golden, split_golden
 
 
 class TestText(unittest.TestCase):
@@ -84,6 +86,46 @@ class TestEscalation(unittest.TestCase):
         pred = Prediction(label="praise", proba={"praise": 0.9, "baggage": 0.1})
         d = decide("this was utterly humiliating", pred)
         self.assertTrue(d.escalate)
+
+
+class TestSignals(unittest.TestCase):
+    def test_complaint_tone_detected_without_topic_nouns(self):
+        s = analyze("@Delta I've never been so disrespected, utterly humiliating")
+        self.assertGreaterEqual(s.complaint_evidence, 1)
+
+    def test_contentless_only_for_tiny_messages(self):
+        # regression: an earlier version flagged real messages as contentless
+        # because their vocabulary was outside a hand-written keyword list
+        self.assertTrue(analyze("@Delta ?").contentless)
+        self.assertFalse(
+            analyze("@Delta our plane diverted to Richmond and we're sitting here").contentless
+        )
+
+    def test_refund_request_vs_money_mention(self):
+        req = analyze("@Delta charged twice, I want a refund")
+        self.assertTrue(req.refund_request)
+        mention = analyze("@Delta trying to change my return but the fare difference errors out")
+        self.assertFalse(mention.refund_request)
+        self.assertTrue(mention.money_mention)
+
+    def test_strong_positive_excludes_bare_thanks(self):
+        self.assertFalse(analyze("@Delta bag turned up, false alarm, thanks anyway").strong_positive)
+        self.assertTrue(analyze("@Delta the crew were amazing today").strong_positive)
+
+
+class TestSplits(unittest.TestCase):
+    def test_split_is_disjoint_and_stratified(self):
+        dev, test = split_golden()
+        dev_ids = {r["id"] for r in dev}
+        test_ids = {r["id"] for r in test}
+        self.assertEqual(dev_ids & test_ids, set())
+        self.assertEqual(len(dev) + len(test), len(load_golden()))
+        # every intent present in both halves
+        self.assertEqual({r["intent"] for r in dev}, {r["intent"] for r in test})
+
+    def test_split_is_deterministic(self):
+        self.assertEqual([r["id"] for r in split_golden()[1]],
+                         [r["id"] for r in split_golden()[1]])
 
 
 class TestAgentEndToEnd(unittest.TestCase):
