@@ -25,9 +25,8 @@ analysis.
 **Requirements:** Python 3.10+ only. No third-party dependencies.
 
 ```bash
-# from the repo root (the 'Agent' directory)
-python cli.py setup      # generate the bundled sample + golden sets (deterministic)
-python cli.py eval       # run the full evaluation harness
+python cli.py setup      
+python cli.py eval       
 ```
 
 `python cli.py eval` prints the headline tables and writes:
@@ -99,7 +98,7 @@ activate when an API key is present.
 ## Try it on individual messages
 
 ```bash
-python cli.py demo                       # a curated set of examples
+python cli.py demo                   
 python cli.py handle "@Delta my flight got cancelled, stuck at JFK, need to rebook"
 ```
 
