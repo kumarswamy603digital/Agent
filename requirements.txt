@@ -1,0 +1,10 @@
+# The default pipeline uses ONLY the Python 3.10+ standard library.
+# There are intentionally no required third-party dependencies, so the headline
+# results reproduce anywhere with just `python cli.py setup && python cli.py eval`.
+#
+# Optional extras (only if you flip to a hosted LLM backend or want notebooks):
+#   - a network connection + OPENAI_API_KEY or ANTHROPIC_API_KEY
+#     (the API calls use the stdlib `urllib`, so still no pip install is required)
+#
+# If you later swap in heavier components (e.g. sentence-transformers retrieval,
+# scikit-learn classifiers), pin them here. None are needed for the current results.
