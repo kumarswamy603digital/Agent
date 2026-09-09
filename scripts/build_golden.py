@@ -209,6 +209,70 @@ EXAMPLES = [
     ("@Delta i demand a full refund and compensation for this disaster of a trip", "refund_billing", True, "refund + compensation demand"),
     ("@Delta how do I opt into standby for an earlier flight at the airport?", "check_in_boarding", False, "how-to"),
     ("@Delta your app says gate B12 but the screens say B26, which is right??", "flight_disruption", False, "gate confusion, info-ish, no account action"),
+
+    # ================================================================= ROUND 2
+    # Added to grow the set to 200 so it can be split into a tuning (dev) half
+    # and a held-out (test) half — see eval/splits.py. Written to broaden
+    # coverage with fresh vocabulary, NOT to target known model errors.
+    # ---------------------------------------------------------- flight_disruption
+    ("@Delta inbound aircraft never arrived so we're delayed indefinitely, what happens to my Tokyo connection", "flight_disruption", True, "misconnect risk, needs rebooking"),
+    ("@Delta they announced a crew shortage and cancelled us, rebooking line is 200 people deep", "flight_disruption", True, "cancellation, reaccommodation"),
+    ("@Delta third mechanical delay on the same aircraft tonight, are we actually leaving", "flight_disruption", True, "repeat delay, needs answer"),
+    ("@Delta we were deplaned with no explanation and the board still says on time", "flight_disruption", True, "operational confusion"),
+    ("@Delta if my first leg is late does Delta automatically rebook the second leg?", "flight_disruption", False, "policy how-to, no account action"),
+    ("@Delta any chance the 7pm to Nashville gets cancelled with this front coming through", "flight_disruption", False, "speculative status question"),
+    ("@Delta do delays like this usually clear up or should I look at another carrier", "flight_disruption", False, "general advice question"),
+    # ------------------------------------------------------------------- baggage
+    ("@Delta three of us landed, only two bags did. same booking", "baggage", True, "partial bag delivery, needs report"),
+    ("@Delta my bag has been sitting 'in transit' on the tracker for 48 hours", "baggage", True, "stalled tracking, escalate"),
+    ("@Delta is a duffel counted as a personal item or a carry-on?", "baggage", False, "policy info"),
+    ("@Delta zipper was torn open and a camera is missing from my checked bag", "baggage", True, "theft/damage claim"),
+    ("@Delta what's the cutoff time for checking bags on domestic departures?", "baggage", False, "policy info"),
+    ("@Delta bag finally arrived but the contents are soaked through", "baggage", True, "damage claim"),
+    # ------------------------------------------------------------- booking_change
+    ("@Delta need to move two passengers off a four-person itinerary, possible?", "booking_change", True, "partial itinerary change, agent needed"),
+    ("@Delta can I split my round trip so only the return changes?", "booking_change", True, "complex change, agent needed"),
+    ("@Delta what happens to my seat assignment if I switch flights?", "booking_change", False, "policy question"),
+    ("@Delta trying to book with a voucher and it won't accept the code", "booking_change", True, "voucher/payment issue"),
+    ("@Delta is same-day confirmed change free for Gold members?", "booking_change", False, "policy question"),
+    ("@Delta my travel dates changed, do I pay the fare difference?", "booking_change", False, "policy question"),
+    # -------------------------------------------------------------- refund_billing
+    ("@Delta cancelled within 24 hours like your policy says, still no refund posted", "refund_billing", True, "refund not received"),
+    ("@Delta seat upgrade charged twice, one needs reversing", "refund_billing", True, "duplicate charge"),
+    ("@Delta how long do refunds normally take to hit a credit card?", "refund_billing", False, "pure how-to"),
+    ("@Delta paid for premium seats then the aircraft swapped to one without them, want the difference back", "refund_billing", True, "fare difference claim"),
+    ("@Delta my ecredit expired while flights were suspended, can it be reinstated", "refund_billing", True, "credit reinstatement"),
+    ("@Delta was charged in dollars but billed in euros with an extra fee, who fixes that", "refund_billing", True, "billing dispute"),
+    # ----------------------------------------------------------- check_in_boarding
+    ("@Delta app says check-in unavailable for this itinerary, no reason given", "check_in_boarding", True, "blocked check-in, needs lookup"),
+    ("@Delta can I check in for both passengers from one phone?", "check_in_boarding", False, "how-to"),
+    ("@Delta my boarding group changed from A to C after I already checked in", "check_in_boarding", False, "inquiry, low stakes"),
+    ("@Delta scanner wouldn't read my pass at the gate and they sent me to the counter", "check_in_boarding", True, "airport blocker"),
+    ("@Delta how do I get a paper boarding pass if my phone dies?", "check_in_boarding", False, "how-to"),
+    # ------------------------------------------------------------- loyalty_program
+    ("@Delta credited the miles for my flight but not the segment MQMs", "loyalty_program", True, "partial credit, account lookup"),
+    ("@Delta do miles from a partner airline count toward Medallion?", "loyalty_program", False, "policy info"),
+    ("@Delta my upgrade certificates disappeared after my status renewed", "loyalty_program", True, "missing benefits"),
+    ("@Delta how do I use miles to upgrade a companion's ticket?", "loyalty_program", False, "how-to"),
+    ("@Delta rollover MQMs from last year never appeared in my account", "loyalty_program", True, "missing MQMs"),
+    # ---------------------------------------------------------- complaint_feedback
+    ("@Delta boarded us then left us sitting with no air conditioning for an hour, unacceptable", "complaint_feedback", True, "onboard conditions complaint"),
+    ("@Delta the agent rolled her eyes at me when I asked a simple question", "complaint_feedback", True, "staff conduct complaint"),
+    ("@Delta being treated like cargo on this airline lately, genuinely awful", "complaint_feedback", True, "general service complaint"),
+    ("@Delta nobody on your crew acknowledged we'd been waiting since 5am, appalling", "complaint_feedback", True, "service complaint"),
+    ("@Delta the way your staff spoke to my elderly mother was shameful", "complaint_feedback", True, "staff conduct + vulnerable"),
+    ("@Delta third time this month your crew has been dismissive, done with you", "complaint_feedback", True, "repeat complaint, churn risk"),
+    # --------------------------------------------------------------------- praise
+    ("@Delta the ground crew in Fargo went out in a blizzard to find my gate-checked bag, incredible", "praise", False, "praise"),
+    ("@Delta smooth landing in rough wind, hats off to the flight deck", "praise", False, "praise"),
+    ("@Delta your DM team solved in ten minutes what the phone line couldn't in two hours, thank you", "praise", False, "praise"),
+    ("@Delta flight attendant Marcus made my anxious first flight so much easier, thank him for me", "praise", False, "praise"),
+    # --------------------------------------------------------------- general_info
+    ("@Delta do you offer seatback screens on transcon routes?", "general_info", False, "product info"),
+    ("@Delta what's the youngest age for a child to fly as an unaccompanied minor?", "general_info", True, "UM safety policy"),
+    ("@Delta is Sky Priority boarding included with a Comfort+ fare?", "general_info", False, "policy info"),
+    ("@Delta are there quiet zones or family sections on your widebodies?", "general_info", False, "product info"),
+    ("@Delta can I travel in my final trimester and do you need a doctor's note?", "general_info", True, "medical clearance"),
 ]
 
 

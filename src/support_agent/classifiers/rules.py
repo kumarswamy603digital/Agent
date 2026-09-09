@@ -73,22 +73,37 @@ _COMPILED = {
 }
 
 
+def compile_rules(table: Dict[str, List[tuple]]):
+    """Compile a {intent: [(pattern, weight)]} table."""
+    return {intent: [(re.compile(p), w) for p, w in pats] for intent, pats in table.items()}
+
+
 class RuleClassifier:
+    """Keyword baseline.
+
+    The default pattern table (`RULES`) is intentionally frozen: it is the
+    "simple baseline" the main model is measured against, so improving it would
+    move the goalposts. The main model passes its own corrected table via
+    `rules_table` (see `classifiers/rules_refined.py`).
+    """
+
     name = "rules"
 
-    def __init__(self):
+    def __init__(self, rules_table: Dict[str, List[tuple]] = None):
         self.majority = None
-        self.labels: List[str] = list(RULES.keys())
+        self._table = rules_table if rules_table is not None else RULES
+        self._compiled = _COMPILED if rules_table is None else compile_rules(rules_table)
+        self.labels: List[str] = list(self._table.keys())
 
     def fit(self, X: List[str], y: List[str]) -> "RuleClassifier":
         self.majority = Counter(y).most_common(1)[0][0]
-        self.labels = sorted(set(y) | set(RULES.keys()))
+        self.labels = sorted(set(y) | set(self._table.keys()))
         return self
 
     def _score(self, text: str) -> Dict[str, float]:
         t = (text or "").lower()
         scores = {lab: 0.0 for lab in self.labels}
-        for intent, pats in _COMPILED.items():
+        for intent, pats in self._compiled.items():
             for rx, w in pats:
                 if rx.search(t):
                     scores[intent] += w
@@ -97,6 +112,10 @@ class RuleClassifier:
     def strength(self, text: str) -> float:
         """Total matched keyword weight — how strongly rules 'fired'. 0 = no match."""
         return sum(self._score(text).values())
+
+    def scores(self, text: str) -> Dict[str, float]:
+        """Per-intent matched keyword weight (public accessor for the refiner)."""
+        return self._score(text)
 
     def predict(self, text: str) -> Prediction:
         scores = self._score(text)

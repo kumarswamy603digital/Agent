@@ -37,7 +37,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from support_agent.agent import SupportAgent
 from support_agent.classifiers import (
-    MajorityClassifier, RuleClassifier, HybridClassifier,
+    MajorityClassifier, RuleClassifier, RefinedClassifier, RULES_V2,
 )
 from support_agent.config import Config
 from support_agent.data_loader import build_threads
@@ -45,6 +45,7 @@ from support_agent.escalation import ESCALATE_INTENTS
 from support_agent.intents import INTENTS
 from eval import metrics as M
 from eval.judge import get_judge
+from eval.splits import round2_only, split_golden
 from support_agent.llm.backend import get_backend
 
 GOLDEN = "data/golden/golden_eval.jsonl"
@@ -60,11 +61,14 @@ def load_jsonl(path):
 def train_classifiers(cfg):
     threads = build_threads(cfg.data_path, cfg.brand)
     X = [t.customer_text for t in threads]
-    weak = RuleClassifier().fit(X, ["general_info"] * len(X))
+    # Weak supervision: the corrected keyword table labels the training corpus.
+    weak = RuleClassifier(rules_table=RULES_V2).fit(X, ["general_info"] * len(X))
     y_weak = [weak.predict(t).label for t in X]
     maj = MajorityClassifier().fit(X, y_weak)
+    # Baseline uses the FROZEN original keyword table (not the corrected one), so
+    # the main-model-vs-baseline comparison is not flattered by shared fixes.
     rules = RuleClassifier().fit(X, y_weak)
-    main = HybridClassifier(
+    main = RefinedClassifier(
         rule_weight=cfg.rule_weight, nb_alpha=cfg.nb_alpha,
         nb_min_df=cfg.nb_min_df, nb_ngram_range=cfg.nb_ngram_range,
     ).fit(X, y_weak)
@@ -76,7 +80,7 @@ def eval_intents(golden, maj, rules, main):
     texts = [g["text"] for g in golden]
     out = {}
     for name, clf in [("trivial_majority", maj), ("simple_rules", rules),
-                      ("main_hybrid", main)]:
+                      ("main_refined", main)]:
         y_pred = [clf.predict(t).label for t in texts]
         out[name] = {
             "accuracy": M.accuracy(y_true, y_pred),
@@ -86,7 +90,31 @@ def eval_intents(golden, maj, rules, main):
             "_y_pred": y_pred,
         }
     out["_y_true"] = y_true
-    out["_confusion_main"] = M.confusion_matrix(y_true, out["main_hybrid"]["_y_pred"], INTENTS)
+    out["_confusion_main"] = M.confusion_matrix(y_true, out["main_refined"]["_y_pred"], INTENTS)
+    return out
+
+
+def eval_intents_by_split(maj, rules, main):
+    """Report intent accuracy on dev, held-out test, and the never-inspected slice.
+
+    Tuning used the dev split only. `test` is the headline generalization number;
+    `test_unseen_batch` is the most conservative reading of all (examples authored
+    to broaden coverage and never looked at during error analysis).
+    """
+    dev, test = split_golden()
+    unseen = round2_only(test)
+    systems = [("trivial_majority", maj), ("simple_rules", rules), ("main_refined", main)]
+    out = {}
+    for split_name, ds in [("dev", dev), ("test", test), ("test_unseen_batch", unseen)]:
+        yt = [g["intent"] for g in ds]
+        entry = {"n": len(ds)}
+        for name, clf in systems:
+            yp = [clf.predict(g["text"]).label for g in ds]
+            entry[name] = {
+                "accuracy": M.accuracy(yt, yp),
+                "macro_f1": M.macro_f1(yt, yp, INTENTS),
+            }
+        out[split_name] = entry
     return out
 
 
@@ -174,6 +202,7 @@ def main():
     judge = get_judge(get_backend(cfg.llm_backend, cfg.llm_model))
 
     intent_res = eval_intents(golden, maj, rules, nb)
+    split_res = eval_intents_by_split(maj, rules, nb)
     esc_res = eval_escalation(golden, cfg, agent)
     reply_res = eval_reply_quality(golden, agent, judge)
     judge_res = eval_judge_agreement(judgeset, judge)
@@ -185,6 +214,7 @@ def main():
                    "llm_backend": cfg.llm_backend, "judge": judge.name,
                    "abstain_threshold": cfg.abstain_threshold},
         "intent_classification": {k: v for k, v in intent_res.items() if not k.startswith("_")},
+        "intent_by_split": split_res,
         "escalation": {k: v for k, v in esc_res.items() if not k.startswith("_")},
         "reply_quality": reply_res,
         "judge_agreement": judge_res,
@@ -195,18 +225,34 @@ def main():
 
     # confusion matrix file
     with open(os.path.join(RESULTS_DIR, "confusion_main.txt"), "w") as f:
-        f.write("Main model (hybrid) confusion matrix (rows=true, cols=pred)\n\n")
+        f.write("Main model (refined hybrid) confusion matrix (rows=true, cols=pred)\n\n")
         f.write(M.format_confusion(intent_res["_confusion_main"], INTENTS))
         f.write("\n")
 
     _write_markdown(results, intent_res, esc_res)
     _print_console(results, intent_res, esc_res)
+    _print_splits(split_res)
     print(f"\nWrote {RESULTS_DIR}/results.json, summary.md, confusion_main.txt")
     print(f"Total eval time: {elapsed:.1f}s")
 
 
 def _fmt_pct(x):
     return f"{100*x:5.1f}%"
+
+
+def _print_splits(split_res):
+    print("\n[5] INTENT ACCURACY BY SPLIT  (tuned on dev only; test is held out)")
+    print("  %-18s %5s %10s %10s %12s" % ("split", "n", "trivial", "rules", "main"))
+    for name in ["dev", "test", "test_unseen_batch"]:
+        r = split_res[name]
+        print("  %-18s %5d %10s %10s %12s" % (
+            name, r["n"],
+            _fmt_pct(r["trivial_majority"]["accuracy"]),
+            _fmt_pct(r["simple_rules"]["accuracy"]),
+            _fmt_pct(r["main_refined"]["accuracy"]),
+        ))
+    print("  (test_unseen_batch = test items authored to broaden coverage and never")
+    print("   inspected during error analysis — the most conservative estimate)")
 
 
 def _print_console(results, intent_res, esc_res):
@@ -216,7 +262,7 @@ def _print_console(results, intent_res, esc_res):
     print("=" * 70)
     print("\n[1] INTENT CLASSIFICATION (golden n=%d)" % results["config"]["n_golden"])
     print("  %-20s %8s %9s %11s" % ("system", "acc", "macroF1", "weightedF1"))
-    for name in ["trivial_majority", "simple_rules", "main_hybrid"]:
+    for name in ["trivial_majority", "simple_rules", "main_refined"]:
         r = results["intent_classification"][name]
         print("  %-20s %8s %9s %11s" % (name, _fmt_pct(r["accuracy"]),
               f"{r['macro_f1']:.3f}", f"{r['weighted_f1']:.3f}"))
@@ -251,7 +297,7 @@ def _write_markdown(results, intent_res, esc_res):
     a("\n## 1. Intent classification\n")
     a("| system | accuracy | macro-F1 | weighted-F1 |")
     a("|---|---|---|---|")
-    for name in ["trivial_majority", "simple_rules", "main_hybrid"]:
+    for name in ["trivial_majority", "simple_rules", "main_refined"]:
         r = results["intent_classification"][name]
         a(f"| {name} | {r['accuracy']:.3f} | {r['macro_f1']:.3f} | {r['weighted_f1']:.3f} |")
 
@@ -259,7 +305,7 @@ def _write_markdown(results, intent_res, esc_res):
     a("| intent | precision | recall | f1 | support |")
     a("|---|---|---|---|---|")
     for lab in INTENTS:
-        pc = results["intent_classification"]["main_hybrid"]["per_class"][lab]
+        pc = results["intent_classification"]["main_refined"]["per_class"][lab]
         a(f"| {lab} | {pc['precision']:.2f} | {pc['recall']:.2f} | {pc['f1']:.2f} | {pc['support']} |")
 
     a("\n## 2. Escalation decision (positive class = escalate)\n")

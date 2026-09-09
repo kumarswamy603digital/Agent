@@ -7,7 +7,7 @@ reviewable** — the scripts are just serializers, not label generators.
 
 ---
 
-## 1. `golden_eval.jsonl` — intent + escalation (n = 150)
+## 1. `golden_eval.jsonl` — intent + escalation (n = 200)
 
 Each record:
 ```json
@@ -15,15 +15,26 @@ Each record:
 ```
 
 ### Sampling
-- **Stratified by intent** so all 9 classes are covered (no class < 11 examples).
-  Final distribution: flight_disruption 24, general_info 22, refund_billing 18,
-  booking_change 16, complaint_feedback 16, baggage 15, check_in_boarding 14,
-  loyalty_program 14, praise 11.
+- **Stratified by intent** so all 9 classes are covered (no class < 15 examples).
+  Final distribution: flight_disruption 31, general_info 27, refund_billing 24,
+  booking_change 22, complaint_feedback 22, baggage 21, check_in_boarding 19,
+  loyalty_program 19, praise 15.
 - On top of the stratified core we deliberately added a **hard-case block**:
   multi-intent messages, sarcasm/negation, explicit "get me a human", messages
   containing PII (card/phone/email), legal/safety language, and off-topic/empty
   messages ("🔥🔥🔥", "?", giveaway spam).
-- Escalation label balance: **88 escalate / 62 auto-handle**.
+- Escalation label balance: **117 escalate / 83 auto-handle**.
+- The set was built in two rounds: examples **g001–g150** first, then **g151–g200**
+  added to broaden coverage so the set could support a dev/test split. The second
+  batch was written *before* any model tuning and was not aimed at known failures.
+
+### How the set is used (dev / test discipline)
+`eval/splits.py` performs a single deterministic, intent-stratified split into a
+**dev half (119)** and a **test half (81)**. All model iteration used dev only; test
+was scored once at the end. The harness additionally reports accuracy on
+`test ∩ g151–g200` — items never inspected during error analysis — as the most
+conservative generalization estimate. Reporting whole-set accuracy alone would be
+optimistically biased because the rule ordering is hand-tuned.
 
 ### Why the examples are freshly written (not sampled from the training file)
 The bundled training corpus is a synthetic sample (see the project README). If the
@@ -54,6 +65,16 @@ tweets and hold them out; the harness supports that unchanged.)
 - A few deliberately debatable calls are included (e.g. a pure flight-*status*
   question labelled auto-handle even though the intent is `flight_disruption`) so
   the evaluation exposes the precision/recall tension rather than hiding it.
+
+### Known label-consistency limitation
+The boundary between `general_info` and a topic intent is **not perfectly consistent**
+in this set. For example *"how much do you charge for a second checked bag?"* is
+labelled `baggage`, while *"do you allow snowboards as checked baggage and any fees?"*
+is labelled `general_info` — both are bag-fee policy questions. The rule I applied
+(topic-specific questions go to the topic; travel-general questions go to
+`general_info`) was not applied uniformly across every item. This means some residual
+model error is irreducible label noise, and it is why the report calls for a second
+annotator to measure the human ceiling before trusting small accuracy differences.
 
 ---
 
