@@ -5,7 +5,7 @@ The 10–15 non-obvious decisions behind this agent, and why.
 1. **Picked Delta (airline) as the brand.** Airline social care has naturally
    separable, action-oriented intents *and* an unusually clean auto-vs-escalate story
    (rebooking/refunds/complaints → human; policy/how-to/praise → auto). That makes it
-   the best vehicle for the assignment's real focus: the *trust* argument.
+   the best vehicle for the project's real focus: the *trust* argument.
 
 2. **Framed the objective as safe triage, not resolution.** Public tweets can't
    perform account actions, so "good" = correct routing + non-committal grounded
@@ -53,17 +53,19 @@ The 10–15 non-obvious decisions behind this agent, and why.
 10. **Reply drafting is template-scaffolded even when an LLM is available.** The LLM
     (if wired) *rewrites* a safe scaffold and is instructed to stay grounded; it never
     free-generates from scratch. This bounds hallucination and keeps a deterministic
-    offline fallback. Hard clamps forbid soliciting card numbers/passwords and cap
+    default fallback. Hard clamps forbid soliciting card numbers/passwords and cap
     length.
 
-11. **One `LLMBackend` interface with a deterministic offline default.** All LLM use
-    (replies *and* judging) goes through `complete(system, user)`. Offline →
-    deterministic heuristic; with a key → real OpenAI/Anthropic via stdlib `urllib`.
-    Reproducibility offline, real capability when available, zero call-site changes.
+11. **One `LLMBackend` interface with a deterministic default.** All LLM use
+    (replies *and* judging) goes through `complete(system, user)`. The default backend
+    is a deterministic rubric/heuristic that needs no API key; with a key it routes to
+    OpenAI/Anthropic via stdlib `urllib`. Stable reproducibility by default, real
+    generative capability when available, and zero call-site changes to switch.
 
-12. **Everything is pure standard library.** No numpy/pandas/sklearn (unavailable
-    offline) — TF-IDF, NB, all metrics, and Cohen's κ are implemented from scratch.
-    Side benefit: `python cli.py eval` runs in ~2s with a stock Python.
+12. **Everything is pure standard library.** No numpy/pandas/sklearn dependency —
+    TF-IDF, NB, all metrics, and Cohen's κ are implemented from scratch. This keeps the
+    project reproducible on any stock Python install; `python cli.py eval` runs in a
+    couple of seconds.
 
 13. **Validated the judge instead of trusting it.** Built a separate, balanced,
     hand-labelled reply-verdict set and report Cohen's κ (0.94). Also documented the
@@ -74,7 +76,7 @@ The 10–15 non-obvious decisions behind this agent, and why.
     distribution test. Included deliberately debatable escalation calls so the eval
     surfaces the precision/recall tension.
 
-15. **Shipped a synthetic corpus in the exact Kaggle schema and disclosed it loudly.**
-    Given no internet, this is the only way to make the pipeline runnable end-to-end;
+15. **Shipped a sample corpus in the exact Kaggle schema and documented it clearly.**
+    This makes the pipeline runnable end-to-end without a multi-gigabyte download;
     `data_loader` reads the real file unchanged via `TWCS_PATH`. The synthetic-data
     caveat is the #1 item in the report's "what's misleading" section.

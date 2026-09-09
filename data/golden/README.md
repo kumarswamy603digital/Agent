@@ -26,9 +26,9 @@ Each record:
 - Escalation label balance: **88 escalate / 62 auto-handle**.
 
 ### Why the examples are freshly written (not sampled from the training file)
-The offline environment has no access to the real Kaggle tweets, and the bundled
-training corpus is synthetic. If the golden examples were drawn from that same
-synthetic corpus, intent scores would measure *memorization*, not generalization.
+The bundled training corpus is a synthetic sample (see the project README). If the
+golden examples were drawn from that same corpus, intent scores would measure
+*memorization*, not generalization.
 So every golden message is **hand-written with different vocabulary** from the
 training templates on purpose — e.g. the golden set uses "scrubbed", "bumped /
 oversold", "misconnect", "reaccommodation", "IDB", "ecredit", "MQMs", "standby"
@@ -82,8 +82,8 @@ judge↔human Cohen's κ on this set, rather than assuming the judge is correct.
   0 means it should be blocked or rewritten.
 
 ### Known limitation surfaced by this set
-The offline heuristic judge agrees with the human on **35/36** cases (κ = 0.94).
+The default rubric judge agrees with the human on **35/36** cases (κ = 0.94).
 Its one miss is a *relevance* failure that was otherwise safe and grounded — i.e.
-the heuristic judge slightly under-detects "answered the wrong thing" when the
+the rubric judge slightly under-detects "answered the wrong thing" when the
 reply is polite and hallucination-free. This is documented in the report as a
 reason to prefer an LLM judge (with this set as its regression test) in production.

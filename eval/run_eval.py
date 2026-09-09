@@ -21,7 +21,7 @@ Runs three evaluations and writes results/ (JSON + Markdown + confusion matrix):
      hand-labelled judge_agreement set — so the judge's trustworthiness is
      measured, not assumed.
 
-Everything is deterministic offline. Run:  python eval/run_eval.py
+Everything is deterministic with the default backend. Run:  python eval/run_eval.py
 """
 
 from __future__ import annotations

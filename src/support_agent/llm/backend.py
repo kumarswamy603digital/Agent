@@ -3,14 +3,15 @@
 The whole agent talks to an LLM only through the `LLMBackend.complete(system,
 user)` interface. This lets us run three ways with zero code changes elsewhere:
 
-  * HeuristicBackend  -> deterministic, offline, no network. DEFAULT. Used for
-                         reproducible headline numbers and CI.
-  * OpenAIBackend     -> hosted model via HTTPS (needs OPENAI_API_KEY + network).
-  * AnthropicBackend  -> hosted model via HTTPS (needs ANTHROPIC_API_KEY + network).
+  * HeuristicBackend  -> deterministic, no API key required. DEFAULT. Used for
+                         stable, reproducible headline numbers.
+  * OpenAIBackend     -> hosted model via HTTPS (needs OPENAI_API_KEY).
+  * AnthropicBackend  -> hosted model via HTTPS (needs ANTHROPIC_API_KEY).
 
-Only the offline backend runs in this sandbox (no outbound network). The API
-adapters are real (stdlib urllib) so a reviewer with a key + network can flip
-`SUPPORT_AGENT_LLM=openai` and get true generative replies and judging.
+The default backend keeps evaluation deterministic and dependency-free. The API
+adapters are implemented with the standard-library `urllib`, so setting
+`SUPPORT_AGENT_LLM=openai` (with a key) yields true generative replies and judging
+without any other code change.
 """
 
 from __future__ import annotations
@@ -32,7 +33,7 @@ class LLMBackend:
 
 
 # --------------------------------------------------------------------------- #
-# Offline deterministic backend                                               #
+# Default deterministic backend                                               #
 # --------------------------------------------------------------------------- #
 class HeuristicBackend(LLMBackend):
     """Deterministic text synthesis.
@@ -47,7 +48,7 @@ class HeuristicBackend(LLMBackend):
       2. Judging: returns a JSON verdict computed by a rubric heuristic
          (see judge.py, which calls back into deterministic scorers).
 
-    Because it's deterministic, offline metrics are stable run-to-run.
+    Because it's deterministic, metrics are stable run-to-run.
     """
 
     name = "heuristic"

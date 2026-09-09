@@ -8,8 +8,8 @@ Real schema (thoughtvector/customer-support-on-twitter, file `twcs.csv`):
 Brand agents tweet with `inbound == "False"` and an `author_id` equal to the
 brand handle (e.g. "Delta", "AppleSupport").
 
-This module is schema-faithful: it runs on the real 3M-row file unchanged and on
-the bundled synthetic sample identically. For large files we stream row by row.
+This module is schema-faithful: it runs on the full Kaggle file unchanged and on
+the bundled sample corpus identically. For large files we stream row by row.
 """
 
 from __future__ import annotations

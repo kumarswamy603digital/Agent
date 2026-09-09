@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Generate a realistic *synthetic* sample in the exact Kaggle `twcs.csv` schema.
+"""Generate a synthetic sample corpus in the exact Kaggle `twcs.csv` schema.
 
-WHY THIS EXISTS
----------------
-The build/eval environment for this repo is fully offline (no network, so the
-real 3M-row Kaggle file cannot be downloaded here). To keep the pipeline
-runnable and the headline numbers reproducible by anyone in <15 minutes, we ship
-a synthetic Delta corpus that mirrors the real schema and much of its texture:
+Purpose
+-------
+The repository ships a small, self-contained Delta corpus so the pipeline runs
+end-to-end and the headline numbers are reproducible without a multi-gigabyte
+Kaggle download. The sample mirrors the real schema and much of its texture:
 noisy casing, emojis, typos, @mentions, multi-turn threads, and messy/ambiguous
 asks.
 
-This is a deliberate, disclosed limitation (see REPORT.md ->
-"What is misleading about my headline number?"). The *code path* is identical to
-production: `data_loader.build_threads` reads this file exactly as it reads the
-real `twcs.csv`. To run on real data:  `export TWCS_PATH=/path/to/twcs.csv`.
+Using a synthetic sample instead of the full dataset is a known limitation of the
+headline metrics (see REPORT.md -> "What is misleading about my headline
+number?"). The *code path* is identical to production:
+`data_loader.build_threads` reads this file exactly as it reads the real
+`twcs.csv`. To run on the real data:  `export TWCS_PATH=/path/to/twcs.csv`.
 
 Output columns match Kaggle exactly:
   tweet_id, author_id, inbound, created_at, text, response_tweet_id,
